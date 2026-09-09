@@ -1,44 +1,54 @@
-name: Update Hysteria2 Configs
+name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    # هر ۶ ساعت یکبار اجرا شود
-    - cron: '0 */6 * * *'
-  workflow_dispatch: # اجازه اجرای دستی توسط تو
+    - cron: '0 */6 * * *' # هر ۶ ساعت یکبار
+  workflow_dispatch: # اجازه اجرای دستی
 
 jobs:
-  update_configs:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Download ebrasha list
+      - name: Fetch and Merge Sources
         run: |
-          curl -sL "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/all_extracted_configs.txt" -o all_configs.txt
+          # ایجاد یک فایل موقت برای ذخیره همه لینک‌ها
+          touch all_sources_combined.txt
 
-      - name: Filter Hysteria2 configs
-        run: |
-          # استخراج تمام لینک‌هایی که با hy2 یا hysteria2 شروع میشوند
-          grep -E "^(hysteria2|hy2)://" all_configs.txt > hy2_filtered.txt || touch hy2_filtered.txt
+          # لیست تمام منابع (URLها)
+          URLS=(
+            "https://raw.githubusercontent.com/ebrasha/ebrasha/main/all_extracted_configs.txt"
+            "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2"
+            "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
+            "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/main/configs/proxy_configs.txt"
+          )
 
-      - name: Check for changes
-        id: git_check
-        run: |
-          if [ -f hy2_filtered.txt ] && ! git diff --quiet HEAD -- hy2_filtered.txt; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
+          echo "Starting to fetch sources..."
 
-      - name: Commit and push changes
-        if: steps.git_check.outputs.changed == 'true'
+          for url in "${URLS[@]}"; do
+            echo "Fetching: $url"
+            # دانلود فایل و استخراج خطوطی که با پروتکل‌های Hy2 شروع می‌شوند
+            # استفاده از -s برای حالت بی‌صدا و -L برای دنبال کردن Redirectها
+            curl -sL "$url" | grep -E "^(hysteria2://|hy2://)" >> all_sources_combined.txt || echo "No Hy2 found in $url"
+          done
+
+          echo "Merging and removing duplicates..."
+          
+          # مراحل نهایی:
+          # 1. sort: مرتب کردن
+          # 2. uniq: حذف خطوط تکراری
+          # 3. ذخیره در فایل نهایی
+          sort all_sources_combined.txt | uniq > hy2_filtered.txt
+
+          echo "Process complete!"
+          echo "Total unique Hy2 configs found: $(wc -l < hy2_filtered.txt)"
+
+      - name: Commit and Push changes
         run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "actions@github.com"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           git add hy2_filtered.txt
-          git commit -m "Update Hysteria2 configs (auto)"
+          git commit -m "Update Hy2 list from multiple sources [skip ci]" || echo "No changes to commit"
           git push
