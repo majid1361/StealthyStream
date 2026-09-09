@@ -20,6 +20,7 @@ jobs:
           # لیست تمام منابع (URLها)
           URLS=(
             "https://raw.githubusercontent.com/ebrasha/ebrasha/main/all_extracted_configs.txt"
+            "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
             "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2"
             "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
             "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/main/configs/proxy_configs.txt"
