@@ -2,7 +2,7 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # هر ۶ ساعت یکبار
+    - cron: '0 */3 * * *' # هر ۳ ساعت یکبار
   workflow_dispatch: # اجازه اجرای دستی
 
 jobs:
@@ -12,12 +12,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
       - name: Fetch and Merge Sources
         run: |
-          # ایجاد یک فایل موقت برای ذخیره همه لینک‌ها
           touch all_sources_combined.txt
 
-          # لیست تمام منابع (URLها)
           URLS=(
             "https://raw.githubusercontent.com/ebrasha/ebrasha/main/all_extracted_configs.txt"
             "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
@@ -30,26 +33,77 @@ jobs:
 
           for url in "${URLS[@]}"; do
             echo "Fetching: $url"
-            # دانلود فایل و استخراج خطوطی که با پروتکل‌های Hy2 شروع می‌شوند
-            # استفاده از -s برای حالت بی‌صدا و -L برای دنبال کردن Redirectها
             curl -sL "$url" | grep -aE "^(hysteria2://|hy2://)" >> all_sources_combined.txt || echo "No Hy2 found in $url"
           done
 
           echo "Merging and removing duplicates..."
-          
-          # مراحل نهایی:
-          # 1. sort: مرتب کردن
-          # 2. uniq: حذف خطوط تکراری
-          # 3. ذخیره در فایل نهایی
-          sort all_sources_combined.txt | uniq > hy2_filtered.txt
+          sort all_sources_combined.txt | uniq > raw_hy2_unique.txt
 
-          echo "Process complete!"
-          echo "Total unique Hy2 configs found: $(wc -l < hy2_filtered.txt)"
+      - name: Rename and Number Configs
+        run: |
+          python -c '
+          import urllib.parse
+          import os
+
+          PREFIX = "♾️ULTRA-TITAN-SRV-"
+          COUNTER_FILE = "counter.txt"
+          INPUT_FILE = "raw_hy2_unique.txt"
+          OUTPUT_FILE = "hy2_filtered.txt"
+
+          # ۱. خواندن شماره قبلی از فایل counter.txt
+          start_index = 1
+          if os.path.exists(COUNTER_FILE):
+              try:
+                  with open(COUNTER_FILE, "r", encoding="utf-8") as f:
+                      start_index = int(f.read().strip()) + 1
+              except ValueError:
+                  start_index = 1
+
+          current_index = start_index
+
+          if not os.path.exists(INPUT_FILE):
+              print("فایل ورودی پیدا نشد!")
+              exit(0)
+
+          with open(INPUT_FILE, "r", encoding="utf-8", errors="ignore") as f:
+              lines = [line.strip() for line in f if line.strip()]
+
+          processed_configs = []
+
+          for line in lines:
+              # جداسازی لینک اصلی از اسم (قسمت بعد از #)
+              if "#" in line:
+                  base_url, _ = line.split("#", 1)
+              else:
+                  base_url = line
+
+              # ساخت نام جدید
+              custom_name = f"{PREFIX}{current_index:02d}"
+              # انکود کردن نام برای رعایت استانداردهای URL (مثل ایموجی و کاراکترهای خاص)
+              encoded_name = urllib.parse.quote(custom_name)
+
+              # اتصال نام جدید به لینک
+              new_config = f"{base_url}#{encoded_name}"
+              processed_configs.append(new_config)
+
+              current_index += 1
+
+          # ذخیره کانفیگ‌های نام‌گذاری شده
+          with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+              f.write("\n".join(processed_configs) + "\n")
+
+          # ذخیره شماره جدید برای اجراهای بعدی (آخرین شماره ثبت شده)
+          last_used_index = current_index - 1 if current_index > start_index else start_index - 1
+          with open(COUNTER_FILE, "w", encoding="utf-8") as f:
+              f.write(str(last_used_index))
+
+          print(f"پردازش انجام شد! از شماره {start_index:02d} تا {last_used_index:02d} نام‌گذاری شدند.")
+          '
 
       - name: Commit and Push changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add hy2_filtered.txt
-          git commit -m "Update Hy2 list from multiple sources [skip ci]" || echo "No changes to commit"
+          git add hy2_filtered.txt counter.txt
+          git commit -m "Update Hy2 list with custom titan names [skip ci]" || echo "No changes to commit"
           git push
