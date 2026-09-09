@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Fetch and Merge Sources
+      - name: Fetch Sources
         run: |
           touch all_sources_combined.txt
 
@@ -25,21 +25,18 @@ jobs:
             "https://raw.githubusercontent.com/ebrasha/ebrasha/main/all_extracted_configs.txt"
             "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
             "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2"
-            "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
             "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/main/configs/proxy_configs.txt"
+            "https://ogy.de/oneclickvpnkeys-free-sub"
           )
 
           echo "Starting to fetch sources..."
 
           for url in "${URLS[@]}"; do
             echo "Fetching: $url"
-            curl -sL "$url" | grep -aE "^(hysteria2://|hy2://)" >> all_sources_combined.txt || echo "No Hy2 found in $url"
+            curl -m 15 -sL "$url" | grep -aE "^(hysteria2://|hy2://)" >> all_sources_combined.txt || echo "Skip/No Hy2: $url"
           done
 
-          echo "Merging and removing duplicates..."
-          sort all_sources_combined.txt | uniq > raw_hy2_unique.txt
-
-      - name: Rename and Number Configs
+      - name: Deduplicate, Rename and Number Configs
         run: |
           python -c '
           import urllib.parse
@@ -47,16 +44,17 @@ jobs:
 
           PREFIX = "♾️ULTRA-TITAN-SRV-"
           COUNTER_FILE = "counter.txt"
-          INPUT_FILE = "raw_hy2_unique.txt"
+          INPUT_FILE = "all_sources_combined.txt"
           OUTPUT_FILE = "hy2_filtered.txt"
 
-          # ۱. خواندن شماره قبلی از فایل counter.txt
+          # ۱. خواندن شمارنده قبلی
           start_index = 1
           if os.path.exists(COUNTER_FILE):
               try:
                   with open(COUNTER_FILE, "r", encoding="utf-8") as f:
-                      start_index = int(f.read().strip()) + 1
-              except ValueError:
+                      content = f.read().strip()
+                      start_index = int(content) + 1 if content else 1
+              except Exception:
                   start_index = 1
 
           current_index = start_index
@@ -65,39 +63,42 @@ jobs:
               print("فایل ورودی پیدا نشد!")
               exit(0)
 
-          with open(INPUT_FILE, "r", encoding="utf-8", errors="ignore") as f:
-              lines = [line.strip() for line in f if line.strip()]
-
+          unique_base_configs = set()
           processed_configs = []
 
-          for line in lines:
-              # جداسازی لینک اصلی از اسم (قسمت بعد از #)
-              if "#" in line:
-                  base_url, _ = line.split("#", 1)
-              else:
-                  base_url = line
+          with open(INPUT_FILE, "r", encoding="utf-8", errors="ignore") as f:
+              for line in f:
+                  line = line.strip()
+                  if not line:
+                      continue
+                  
+                  # تفکیک بدنه اصلی کانفیگ از اسم بعد از هش
+                  base_url = line.split("#")[0].strip()
+                  
+                  # رد کردن تکراری‌ها حتی با اسم‌های مختلف
+                  if base_url in unique_base_configs:
+                      continue
+                  
+                  unique_base_configs.add(base_url)
 
-              # ساخت نام جدید
-              custom_name = f"{PREFIX}{current_index:02d}"
-              # انکود کردن نام برای رعایت استانداردهای URL (مثل ایموجی و کاراکترهای خاص)
-              encoded_name = urllib.parse.quote(custom_name)
+                  # ساخت نام جدید تایتانی و انکود کردن
+                  custom_name = f"{PREFIX}{current_index:02d}"
+                  encoded_name = urllib.parse.quote(custom_name)
+                  
+                  processed_configs.append(f"{base_url}#{encoded_name}")
+                  current_index += 1
 
-              # اتصال نام جدید به لینک
-              new_config = f"{base_url}#{encoded_name}"
-              processed_configs.append(new_config)
-
-              current_index += 1
-
-          # ذخیره کانفیگ‌های نام‌گذاری شده
+          # ذخیره فایل نهایی کانفیگ‌ها
           with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
               f.write("\n".join(processed_configs) + "\n")
 
-          # ذخیره شماره جدید برای اجراهای بعدی (آخرین شماره ثبت شده)
+          # ذخیره آخرین شماره برای دور بعدی
           last_used_index = current_index - 1 if current_index > start_index else start_index - 1
           with open(COUNTER_FILE, "w", encoding="utf-8") as f:
               f.write(str(last_used_index))
 
-          print(f"پردازش انجام شد! از شماره {start_index:02d} تا {last_used_index:02d} نام‌گذاری شدند.")
+          print(f"کانفیگ‌های یکتا ذخیره شدند: {len(processed_configs)}")
+          print(f"شماره‌گذاری از {start_index:02d} تا {last_used_index:02d} انجام شد.")
           '
 
       - name: Commit and Push changes
@@ -105,5 +106,5 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add hy2_filtered.txt counter.txt
-          git commit -m "Update Hy2 list with custom titan names [skip ci]" || echo "No changes to commit"
+          git commit -m "Auto update Hy2 titan configs [skip ci]" || echo "No changes to commit"
           git push
