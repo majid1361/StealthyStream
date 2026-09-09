@@ -1,0 +1,44 @@
+name: Update Hysteria2 Configs
+
+on:
+  schedule:
+    # هر ۶ ساعت یکبار اجرا شود
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # اجازه اجرای دستی توسط تو
+
+jobs:
+  update_configs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download ebrasha list
+        run: |
+          curl -sL "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/all_extracted_configs.txt" -o all_configs.txt
+
+      - name: Filter Hysteria2 configs
+        run: |
+          # استخراج تمام لینک‌هایی که با hy2 یا hysteria2 شروع میشوند
+          grep -E "^(hysteria2|hy2)://" all_configs.txt > hy2_filtered.txt || touch hy2_filtered.txt
+
+      - name: Check for changes
+        id: git_check
+        run: |
+          if [ -f hy2_filtered.txt ] && ! git diff --quiet HEAD -- hy2_filtered.txt; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push changes
+        if: steps.git_check.outputs.changed == 'true'
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add hy2_filtered.txt
+          git commit -m "Update Hysteria2 configs (auto)"
+          git push
