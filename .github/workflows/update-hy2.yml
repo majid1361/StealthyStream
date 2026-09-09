@@ -2,7 +2,7 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # هر ۶ ساعت یکبار
+    - cron: '0 */3 * * *' # هر ۶ ساعت یکبار
   workflow_dispatch: # اجازه اجرای دستی
 
 jobs:
@@ -32,7 +32,7 @@ jobs:
             echo "Fetching: $url"
             # دانلود فایل و استخراج خطوطی که با پروتکل‌های Hy2 شروع می‌شوند
             # استفاده از -s برای حالت بی‌صدا و -L برای دنبال کردن Redirectها
-            curl -sL "$url" | grep -E "^(hysteria2://|hy2://)" >> all_sources_combined.txt || echo "No Hy2 found in $url"
+            curl -sL "$url" | grep -aE "^(hysteria2://|hy2://)" >> all_sources_combined.txt || echo "No Hy2 found in $url"
           done
 
           echo "Merging and removing duplicates..."
