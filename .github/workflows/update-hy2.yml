@@ -35,13 +35,13 @@ jobs:
           from urllib.parse import urlparse, parse_qs, quote
 
           URLS = [
+              "https://raw.githubusercontent.com/majid1361/StealthyStream/main/custom.txt",
               "https://raw.githubusercontent.com/ebrasha/ebrasha/main/all_extracted_configs.txt",
-              "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
               "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2",
               "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/main/configs/proxy_configs.txt",
               "https://ogy.de/oneclickvpnkeys-free-sub",
               "https://raw.githubusercontent.com/barry-far/V2ray-config/main/All_Configs_Sub.txt",
-              "https://raw.githubusercontent.com/majid1361/StealthyStream/main/custom.txt"
+              "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
           ]
 
           TIMEOUT = 15
