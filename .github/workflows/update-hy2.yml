@@ -72,6 +72,11 @@ jobs:
               line = line.strip()
               if not line.startswith(("hysteria2://", "hy2://")): continue
 
+              # فیلتر کردن کانفیگ‌های ناامن (حذف اخطارهای SSL و خطرات MITM)
+              line_lower = line.lower()
+              if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
+                  continue
+
               try:
                   parsed = urlparse(line)
                   # جدا کردن بخش کاربری از آدرس سرور
