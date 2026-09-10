@@ -2,7 +2,7 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # هر ۳ ساعت یکبار
+    - cron: '0 */6 * * *' # هر ۶ ساعت یکبار
   workflow_dispatch: # اجازه اجرای دستی
 
 jobs:
@@ -64,23 +64,33 @@ jobs:
               print("فایل ورودی پیدا نشد!")
               exit(0)
 
-          unique_base_configs = set()
+          seen_targets = set()
           processed_configs = []
 
           with open(INPUT_FILE, "r", encoding="utf-8", errors="ignore") as f:
               for line in f:
                   line = line.strip()
-                  if not line:
+                  if not line or not (line.startswith("hy2://") or line.startswith("hysteria2://")):
                       continue
                   
                   # تفکیک بدنه اصلی کانفیگ از اسم بعد از هش
                   base_url = line.split("#")[0].strip()
                   
-                  # رد کردن تکراری‌ها حتی با اسم‌های مختلف
-                  if base_url in unique_base_configs:
+                  # استخراج Host:Port و SNI برای حذف دقیق تکراری‌ها
+                  try:
+                      parsed = urllib.parse.urlsplit(base_url)
+                      server_address = f"{parsed.hostname}:{parsed.port}" if parsed.port else str(parsed.hostname)
+                      queries = urllib.parse.parse_qs(parsed.query)
+                      sni = queries.get("sni", [""])[0].strip().lower()
+                      unique_key = f"{server_address.lower()}_{sni}"
+                  except Exception:
+                      unique_key = base_url
+                  
+                  # رد کردن تکراری‌های مبتنی بر Address و SNI
+                  if unique_key in seen_targets:
                       continue
                   
-                  unique_base_configs.add(base_url)
+                  seen_targets.add(unique_key)
 
                   # ساخت نام جدید تایتانی و انکود کردن
                   custom_name = f"{PREFIX}{current_index:02d}"
