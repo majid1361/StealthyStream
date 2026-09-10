@@ -2,120 +2,146 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # هر ۶ ساعت یکبار
-  workflow_dispatch: # اجازه اجرای دستی
+    # اجرا هر ۶ ساعت یک‌بار (ساعت 00:00, 06:00, 12:00, 18:00 به وقت UTC)
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # امکان اجرای دستی با دکمه Run workflow
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      - name: Fetch Sources
+      - name: Install Dependencies
         run: |
-          touch all_sources_combined.txt
+          python -m pip install --upgrade pip
+          pip install requests
 
-          URLS=(
-            "https://raw.githubusercontent.com/ebrasha/ebrasha/main/all_extracted_configs.txt"
-            "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
-            "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2"
-            "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/main/configs/proxy_configs.txt"
-            "https://ogy.de/oneclickvpnkeys-free-sub"
-            "https://raw.githubusercontent.com/majid1361/StealthyStream/main/custom.txt"
-          )
-
-          echo "Starting to fetch sources..."
-
-          for url in "${URLS[@]}"; do
-            echo "Fetching: $url"
-            curl -m 15 -sL "$url" | grep -aE "^(hysteria2://|hy2://)" >> all_sources_combined.txt || echo "Skip/No Hy2: $url"
-          done
-
-      - name: Deduplicate, Rename and Number Configs
+      - name: Fetch, Deduplicate and Normalize Configs
         run: |
-          python -c '
-          import urllib.parse
+          python - << 'EOF'
           import os
+          import re
+          import requests
+          from urllib.parse import urlparse, parse_qs, quote
 
-          PREFIX = "♾️ULTRA-TITAN-SRV-"
-          COUNTER_FILE = "counter.txt"
-          INPUT_FILE = "all_sources_combined.txt"
-          OUTPUT_FILE = "hy2_filtered.txt"
+          URLS = [
+              "https://raw.githubusercontent.com/ebrasha/ebrasha/main/all_extracted_configs.txt",
+              "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
+              "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2",
+              "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/main/configs/proxy_configs.txt",
+              "https://ogy.de/oneclickvpnkeys-free-sub",
+              "https://raw.githubusercontent.com/majid1361/StealthyStream/main/custom.txt"
+          ]
 
-          # ۱. خواندن شمارنده قبلی
-          start_index = 1
-          if os.path.exists(COUNTER_FILE):
+          TIMEOUT = 15
+          HEADERS = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          }
+
+          raw_lines = []
+
+          print("📥 در حال دریافت کانفیگ‌ها از منابع جدید...")
+          for url in URLS:
               try:
-                  with open(COUNTER_FILE, "r", encoding="utf-8") as f:
-                      content = f.read().strip()
-                      start_index = int(content) + 1 if content else 1
+                  res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+                  if res.status_code == 200:
+                      lines = res.text.replace('\r', '').split('\n')
+                      raw_lines.extend(lines)
+                      print(f"✅ موفق: {url}")
+                  else:
+                      print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
+              except Exception as e:
+                  print(f"❌ خطا در دانلود: {url} -> {e}")
+
+          seen_keys = set()
+          cleaned_configs = []
+
+          print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری...")
+          for line in raw_lines:
+              line = line.strip()
+              if not line.startswith("hysteria2://"):
+                  continue
+
+              try:
+                  parsed = urlparse(line)
+                  # جدا کردن بخش کاربری از آدرس سرور
+                  netloc = parsed.netloc.split('@')[-1]
+                  
+                  # مدیریت هاست و پورت (سازگار با پورت پیش‌فرض و Port Hopping)
+                  if ':' in netloc:
+                      host, port = netloc.split(':', 1)
+                  else:
+                      host, port = netloc, '443'
+                  
+                  host = host.lower().strip()
+                  port = port.strip()
+
+                  # استخراج و نرمال‌سازی SNI
+                  query_params = parse_qs(parsed.query)
+                  sni = query_params.get('sni', [''])[0].lower().strip()
+
+                  # کلید یکتا: آدرس + پورت + SNI
+                  unique_key = f"{host}:{port}:{sni}"
+
+                  if unique_key not in seen_keys:
+                      seen_keys.add(unique_key)
+                      
+                      # پاکسازی تگ قبلی برای شماره‌گذاری تمیز
+                      base_config = line.split('#')[0].strip()
+                      cleaned_configs.append(base_config)
+
               except Exception:
-                  start_index = 1
+                  continue
 
-          current_index = start_index
+          print(f"✨ تعداد کل کانفیگ‌های یکتای پیدا شده: {len(cleaned_configs)}")
 
-          if not os.path.exists(INPUT_FILE):
-              print("فایل ورودی پیدا نشد!")
-              exit(0)
+          # خواندن آخرین شماره از فایل counter.txt
+          counter_file = "counter.txt"
+          start_counter = 1
+          if os.path.exists(counter_file):
+              try:
+                  with open(counter_file, "r", encoding="utf-8") as f:
+                      content = f.read().strip()
+                      if content.isdigit():
+                          start_counter = int(content) + 1
+              except Exception:
+                  pass
 
-          seen_targets = set()
-          processed_configs = []
+          # شماره‌گذاری یکدست به فرمت اختصاصی
+          final_output = []
+          current_num = start_counter
+          tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
 
-          with open(INPUT_FILE, "r", encoding="utf-8", errors="ignore") as f:
-              for line in f:
-                  line = line.strip()
-                  if not line or not (line.startswith("hy2://") or line.startswith("hysteria2://")):
-                      continue
-                  
-                  # تفکیک بدنه اصلی کانفیگ از اسم بعد از هش
-                  base_url = line.split("#")[0].strip()
-                  
-                  # استخراج Host:Port و SNI برای حذف دقیق تکراری‌ها
-                  try:
-                      parsed = urllib.parse.urlsplit(base_url)
-                      server_address = f"{parsed.hostname}:{parsed.port}" if parsed.port else str(parsed.hostname)
-                      queries = urllib.parse.parse_qs(parsed.query)
-                      sni = queries.get("sni", [""])[0].strip().lower()
-                      unique_key = f"{server_address.lower()}_{sni}"
-                  except Exception:
-                      unique_key = base_url
-                  
-                  # رد کردن تکراری‌های مبتنی بر Address و SNI
-                  if unique_key in seen_targets:
-                      continue
-                  
-                  seen_targets.add(unique_key)
+          for cfg in cleaned_configs:
+              final_output.append(f"{cfg}#{tag_prefix}{current_num}")
+              current_num += 1
 
-                  # ساخت نام جدید تایتانی و انکود کردن
-                  custom_name = f"{PREFIX}{current_index:02d}"
-                  encoded_name = urllib.parse.quote(custom_name)
-                  
-                  processed_configs.append(f"{base_url}#{encoded_name}")
-                  current_index += 1
+          # ذخیره فایل خروجی کانفیگ‌ها
+          with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(final_output) + ("\n" if final_output else ""))
 
-          # ذخیره فایل نهایی کانفیگ‌ها
-          with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-              f.write("\n".join(processed_configs) + "\n")
+          # ذخیره آخرین شماره برای اجرای بعدی
+          last_saved_num = current_num - 1 if final_output else (start_counter - 1 if start_counter > 1 else 0)
+          with open(counter_file, "w", encoding="utf-8") as f:
+              f.write(str(last_saved_num))
 
-          # ذخیره آخرین شماره برای دور بعدی
-          last_used_index = current_index - 1 if current_index > start_index else start_index - 1
-          with open(COUNTER_FILE, "w", encoding="utf-8") as f:
-              f.write(str(last_used_index))
+          print(f"🎉 فایل hy2_filtered.txt با موفقیت ساخته شد.")
+          print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} انجام شد.")
+          EOF
 
-          print(f"کانفیگ‌های یکتا ذخیره شدند: {len(processed_configs)}")
-          print(f"شماره‌گذاری از {start_index:02d} تا {last_used_index:02d} انجام شد.")
-          '
-
-      - name: Commit and Push changes
+      - name: Commit and Push Changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add hy2_filtered.txt counter.txt
-          git commit -m "Auto update Hy2 titan configs [skip ci]" || echo "No changes to commit"
-          git push
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update Hy2 configs [skip ci]" && git push)
