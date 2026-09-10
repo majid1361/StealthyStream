@@ -36,7 +36,7 @@ jobs:
 
           URLS = [
               "https://raw.githubusercontent.com/majid1361/StealthyStream/main/custom.txt",
-              "https://raw.githubusercontent.com/ebrasha/ebrasha/main/all_extracted_configs.txt",
+              "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/all_extracted_configs.txt",
               "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2",
               "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/main/configs/proxy_configs.txt",
               "https://ogy.de/oneclickvpnkeys-free-sub",
