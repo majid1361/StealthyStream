@@ -24,7 +24,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install requests beautifulsoup4
 
       - name: Fetch, Deduplicate and Normalize Configs
         run: |
@@ -32,6 +32,7 @@ jobs:
           import os
           import re
           import requests
+          from bs4 import BeautifulSoup
           from urllib.parse import urlparse, parse_qs, quote
 
           URLS = [
@@ -44,14 +45,36 @@ jobs:
               "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
           ]
 
+          TELEGRAM_CHANNELS = [
+              "makvaslim",
+              "proxy_kafee",
+              "persianvpnhub",
+              "v2ray_dalghak1",
+              "prrofile_purple",
+              "free1_vpn",
+              "Hope_Net",
+              "FreakConfig",
+              "V2ray_worlds",
+              "VpnProxy4free",
+              "Filtershekan_channel",
+              "PrivateVPNs",
+              "v2rayNG_Matsuri",
+              "Shh_Proxy",
+              "VmessProtocol",
+              "Outline_ir",
+              "v2ray_free_conf",
+              "v2rayng_org",
+              "Outline_Vpn"
+          ]
+
           TIMEOUT = 15
           HEADERS = {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
           }
 
           raw_lines = []
 
-          print("📥 در حال دریافت کانفیگ‌ها از منابع جدید...")
+          print("📥 در حال دریافت کانفیگ‌ها از منابع URL...")
           for url in URLS:
               try:
                   res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
@@ -63,6 +86,29 @@ jobs:
                       print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
               except Exception as e:
                   print(f"❌ خطا در دانلود: {url} -> {e}")
+
+          print("\n📱 در حال اسکرپ کانال‌های تلگرام (نسخه وب)...")
+          hy2_regex = re.compile(r'hysteria2://[^\s<>"\'`]+', re.IGNORECASE)
+
+          for channel in TELEGRAM_CHANNELS:
+              ch_name = channel.lstrip('@')
+              t_url = f"https://t.me/s/{ch_name}"
+              try:
+                  res = requests.get(t_url, headers=HEADERS, timeout=TIMEOUT)
+                  if res.status_code == 200:
+                      soup = BeautifulSoup(res.text, 'html.parser')
+                      messages = soup.find_all('div', class_='tgme_widget_message_text')
+                      ch_configs = []
+                      for msg in messages:
+                          found = hy2_regex.findall(msg.get_text())
+                          for c in found:
+                              ch_configs.append(c.rstrip('.,;()[]{}'))
+                      raw_lines.extend(ch_configs)
+                      print(f"✅ TG @{ch_name:<20}: {len(ch_configs)} کانفیگ Hy2 دریافت شد")
+                  else:
+                      print(f"⚠️ TG @{ch_name:<20}: کد وضعیت {res.status_code}")
+              except Exception as e:
+                  print(f"❌ TG @{ch_name:<20}: خطا -> {e}")
 
           seen_keys = set()
           cleaned_configs = []
