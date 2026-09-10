@@ -70,8 +70,7 @@ jobs:
           print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری...")
           for line in raw_lines:
               line = line.strip()
-              if not line.startswith("hysteria2://"):
-                  continue
+              if not line.startswith(("hysteria2://", "hy2://")): continue
 
               try:
                   parsed = urlparse(line)
