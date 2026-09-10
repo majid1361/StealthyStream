@@ -32,6 +32,7 @@ jobs:
           import os
           import re
           import requests
+          from bs4 import BeautifulSoup
           from urllib.parse import urlparse, parse_qs, quote
 
           URLS = [
@@ -86,24 +87,37 @@ jobs:
               except Exception as e:
                   print(f"❌ خطا در دانلود: {url} -> {e}")
 
-          print("\n📱 در حال اسکرپ کانال‌های تلگرام (نسخه وب)...")
+          print("\n📱 در حال اسکرپ عمیق کانال‌های تلگرام (نسخه وب)...")
           hy2_regex = re.compile(r'hysteria2://[^\s<>"\'`]+', re.IGNORECASE)
 
           for channel in TELEGRAM_CHANNELS:
               ch_name = channel.lstrip('@')
               t_url = f"https://t.me/s/{ch_name}"
-              try:
-                  res = requests.get(t_url, headers=HEADERS, timeout=TIMEOUT)
-                  if res.status_code == 200:
-                      # اسکن مستقیم کل متن HTML برای بالاترین سرعت و دقت
+              tg_count = 0
+              
+              # ورق زدن به عقب تا ۳ صفحه (پوشش کامل ۱۰۰+ پیام اخیر)
+              for _ in range(3):
+                  try:
+                      res = requests.get(t_url, headers=HEADERS, timeout=TIMEOUT)
+                      if res.status_code != 200:
+                          break
+                      
                       found_configs = hy2_regex.findall(res.text)
                       clean_tg_configs = [c.rstrip('.,;()[]{}') for c in found_configs]
                       raw_lines.extend(clean_tg_configs)
-                      print(f"✅ TG @{ch_name:<20}: {len(clean_tg_configs)} کانفیگ Hy2 دریافت شد")
-                  else:
-                      print(f"⚠️ TG @{ch_name:<20}: کد وضعیت {res.status_code}")
-              except Exception as e:
-                  print(f"❌ TG @{ch_name:<20}: خطا -> {e}")
+                      tg_count += len(clean_tg_configs)
+
+                      # بررسی وجود دکمه رفتن به پیام‌های قدیمی‌تر
+                      soup = BeautifulSoup(res.text, 'html.parser')
+                      prev_btn = soup.find('a', dict(class_='tme_messages_more'))
+                      if prev_btn and 'href' in prev_btn.attrs:
+                          t_url = "https://t.me" + prev_btn['href']
+                      else:
+                          break
+                  except Exception:
+                      break
+
+              print(f"✅ TG @{ch_name:<20}: {tg_count} کانفیگ Hy2 دریافت شد")
 
           seen_keys = set()
           cleaned_configs = []
@@ -111,7 +125,8 @@ jobs:
           print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری...")
           for line in raw_lines:
               line = line.strip()
-              if not line.startswith(("hysteria2://", "hy2://")): continue
+              if not line.startswith(("hysteria2://", "hy2://")):
+                  continue
 
               # فیلتر کردن کانفیگ‌های ناامن (حذف اخطارهای SSL و خطرات MITM)
               line_lower = line.lower()
@@ -131,6 +146,17 @@ jobs:
                   
                   host = host.lower().strip()
                   port = port.strip()
+
+                  # اعتبارسنجی سلامت هاست و پورت (حذف کانفیگ‌های ناقص مثل -1 یا نامعتبر)
+                  if not host or '.' not in host:
+                      continue
+
+                  # چک کردن بازه پورت عددی یا ساختار پورت هاپینگ
+                  if port.isdigit():
+                      if not (1 <= int(port) <= 65535):
+                          continue
+                  elif not any(char.isdigit() for char in port):
+                      continue
 
                   # استخراج و نرمال‌سازی SNI
                   query_params = parse_qs(parsed.query)
