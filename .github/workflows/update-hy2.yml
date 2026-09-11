@@ -1,180 +1,176 @@
-name: StealthyStream Multi-Source Aggregator
+name: StealthyStream Multi-Source Aggregators
 
 on:
   schedule:
-    # اجرا هر ۶ ساعت یک‌بار (ساعت 00:00, 06:00, 12:00, 18:00 به وقت UTC)
     - cron: '0 */6 * * *'
-  workflow_dispatch: # امکان اجرای دستی با دکمه Run workflow
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
-
-      - name: Fetch, Deduplicate and Normalize Configs
+      - name: Fetch, Ping-Check, Deduplicate and Normalize Configs
         run: |
           python - << 'EOF'
+          import urllib.request
+          import urllib.parse
           import os
           import re
-          import requests
-          from urllib.parse import urlparse, parse_qs, quote
+          import socket
+          from concurrent.futures import ThreadPoolExecutor
 
-          PUBLIC_URLS = [
-              "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/all_extracted_configs.txt",
-              "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2",
-              "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/main/configs/proxy_configs.txt",
-              "https://ogy.de/oneclickvpnkeys-free-sub",
-              "https://raw.githubusercontent.com/barry-far/V2ray-config/main/All_Configs_Sub.txt",
-              "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
+          # منابع آنلاین استخراج کانفیگ
+          urls = [
+              "https://raw.githubusercontent.com/v2go/v2ray-configs/main/All_Configs_Sub.txt",
+              "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/v2ray/all_sub.txt",
+              "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/All_Configs_Sub.txt",
+              "https://raw.githubusercontent.com/soroushmirzaei/telegram-configs-collector/main/protocols/hysteria",
+              "https://raw.githubusercontent.com/soroushmirzaei/telegram-configs-collector/main/protocols/vless",
+              "https://raw.githubusercontent.com/soroushmirzaei/telegram-configs-collector/main/protocols/trojan"
           ]
 
-          TIMEOUT = 15
-          HEADERS = {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-          }
+          raw_lines = []
 
-          raw_items = []
-
-          print("📥 در حال دریافت کانفیگ‌ها از منابع جدید...")
-          # ۱. خواندن فایل کاستوم خودت (با دسترسی به همه پروتکل‌ها)
+          # ۱. خواندن کانفیگ‌های دستی اختصاصی از custom.txt
           if os.path.exists("custom.txt"):
               try:
                   with open("custom.txt", "r", encoding="utf-8") as f:
-                      lines = f.read().replace('\r', '').split('\n')
-                      for line in lines:
-                          raw_items.append((line, True))
-                  print("✅ موفق: custom.txt")
+                      custom_lines = f.read().splitlines()
+                      print(f"📦 Loaded {len(custom_lines)} custom configurations from custom.txt")
+                      raw_lines.extend(custom_lines)
               except Exception as e:
-                  print(f"❌ خطا در خواندن custom.txt -> {e}")
+                  print(f"⚠️ Error reading custom.txt: {e}")
 
-          # ۲. خواندن سورس‌های عمومی (استخراج پروتکل‌های مدنظر)
-          for url in PUBLIC_URLS:
+          # ۲. دریافت کانفیگ‌ها از منابع آنلاین
+          for url in urls:
               try:
-                  res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-                  if res.status_code == 200:
-                      lines = res.text.replace('\r', '').split('\n')
-                      for line in lines:
-                          raw_items.append((line, False))
-                      print(f"✅ موفق: {url}")
-                  else:
-                      print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
+                  req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                  with urllib.request.urlopen(req, timeout=15) as response:
+                      content = response.read().decode('utf-8', errors='ignore')
+                      fetched = content.splitlines()
+                      print(f"✅ Successfully fetched {len(fetched)} lines from {url}")
+                      raw_lines.extend(fetched)
               except Exception as e:
-                  print(f"❌ خطا در دانلود: {url} -> {e}")
+                  print(f"❌ Failed to fetch from {url}: {e}")
+
+          # تابع تست باز بودن پورت و زنده بودن سرور (TCP Ping)
+          def is_server_alive(target):
+              host, port = target
+              try:
+                  with socket.create_connection((host, int(port)), timeout=1.2):
+                      return True
+              except Exception:
+                  return False
 
           seen_keys = set()
-          hy2_cleaned = []
-          vless_cleaned = []
-          trojan_cleaned = []
+          parsed_candidates = []
 
-          TARGET_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://", "vless://", "trojan://")
-          CUSTOM_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://", "vless://", "trojan://", "vmess://", "ss://", "tuic://")
-
-          print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری...")
-          for line, is_custom in raw_items:
+          # ۳. پارس اولیه، حذف کاراکترهای ناامن و کلید یکتا
+          for line in raw_lines:
               line = line.strip()
-              allowed = CUSTOM_PROTOCOLS if is_custom else TARGET_PROTOCOLS
-              if not line.startswith(allowed): continue
+              if not line:
+                  continue
 
-              # فیلتر کردن کانفیگ‌های ناامن (حذف اخطارهای SSL و خطرات MITM)
               line_lower = line.lower()
+              # حذف گواهی‌های نامعتبر و ناامن
               if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
                   continue
 
               try:
-                  parsed = urlparse(line)
-                  # جدا کردن بخش کاربری (UUID/Password) از آدرس سرور
-                  user_info = parsed.netloc.split('@')[0] if '@' in parsed.netloc else ''
-                  netloc = parsed.netloc.split('@')[-1]
-                  
-                  # مدیریت هاست و پورت (سازگار با پورت پیش‌فرض و Port Hopping)
-                  if ':' in netloc:
-                      host, port = netloc.split(':', 1)
-                  else:
-                      host, port = netloc, '443'
-                  
-                  host = host.lower().strip()
-                  port = port.strip()
-
-                  # استخراج و نرمال‌سازی SNI
-                  query_params = parse_qs(parsed.query)
-                  sni = query_params.get('sni', [''])[0].lower().strip()
-
-                  # کلید یکتا برای تفکیک دقیق کانفیگ‌ها
+                  parsed = urllib.parse.urlsplit(line)
                   proto = parsed.scheme.lower()
+                  if proto not in ("hysteria2", "hy2", "vless", "trojan"):
+                      continue
+
+                  host = parsed.hostname
+                  port = parsed.port
+                  if not host or not port:
+                      continue
+
+                  user_info = parsed.username or ""
+                  query_dict = urllib.parse.parse_qs(parsed.query)
+                  sni = query_dict.get('sni', [''])[0] or query_dict.get('peer', [''])[0]
+
+                  # ساخت کلید یکتا برای حذف تکراری‌ها در مبدا
                   unique_key = f"{proto}:{user_info}@{host}:{port}:{sni}"
+                  if unique_key in seen_keys:
+                      continue
 
-                  if unique_key not in seen_keys:
-                      seen_keys.add(unique_key)
-                      
-                      # پاکسازی تگ قبلی برای شماره‌گذاری تمیز
-                      base_config = line.split('#')[0].strip()
-                      
-                      if proto in ("hysteria2", "hysteria", "hy2"):
-                          hy2_cleaned.append(base_config)
-                      elif proto == "vless":
-                          vless_cleaned.append(base_config)
-                      elif proto == "trojan":
-                          trojan_cleaned.append(base_config)
-
+                  seen_keys.add(unique_key)
+                  base_url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, ''))
+                  parsed_candidates.append({
+                      'proto': proto,
+                      'host': host,
+                      'port': port,
+                      'base_url': base_url
+                  })
               except Exception:
                   continue
 
-          print(f"✨ تعداد هیستریا یکتا: {len(hy2_cleaned)}")
-          print(f"✨ تعداد VLESS یکتا: {len(vless_cleaned)}")
-          print(f"✨ تعداد Trojan یکتا: {len(trojan_cleaned)}")
+          print(f"\n🔍 Unique configs found: {len(parsed_candidates)}. Starting multi-threaded ping check...")
 
-          # خواندن آخرین شماره از فایل counter.txt
-          counter_file = "counter.txt"
-          start_counter = 1
-          if os.path.exists(counter_file):
+          # ۴. تست پینگ موازی روی سرورها با ThreadPool (فوق‌سریع)
+          unique_targets = list({(item['host'], item['port']) for item in parsed_candidates})
+          alive_targets = set()
+
+          with ThreadPoolExecutor(max_workers=60) as executor:
+              results = executor.map(is_server_alive, unique_targets)
+              for target, is_alive in zip(unique_targets, results):
+                  if is_alive:
+                      alive_targets.add(target)
+
+          print(f"⚡ Alive & Open-port endpoints: {len(alive_targets)} / {len(unique_targets)}")
+
+          # ۵. مدیریت شمارنده
+          counter = 1
+          if os.path.exists("counter.txt"):
               try:
-                  with open(counter_file, "r", encoding="utf-8") as f:
+                  with open("counter.txt", "r", encoding="utf-8") as f:
                       content = f.read().strip()
                       if content.isdigit():
-                          start_counter = int(content) + 1
-              except Exception:
-                  pass
+                          counter = int(content)
+              except Exception as e:
+                  print(f"⚠️ Error reading counter.txt: {e}")
 
-          current_num = start_counter
-
-          # تگ‌های اختصاصی
-          tag_hy2 = quote("♾️ULTRA-TITAN-SRV-")
-          tag_srvt = quote("♾️ULTRA-TITAN-SRVT-")
-
-          # ۱. پردازش و شماره‌گذاری Hysteria2
           hy2_output = []
-          for cfg in hy2_cleaned:
-              hy2_output.append(f"{cfg}#{tag_hy2}{current_num}")
-              current_num += 1
-
-          # ۲. پردازش و شماره‌گذاری VLESS (ادامه پیوسته شماره‌ها)
           vless_output = []
-          for cfg in vless_cleaned:
-              vless_output.append(f"{cfg}#{tag_srvt}{current_num}")
-              current_num += 1
-
-          # ۳. پردازش و شماره‌گذاری Trojan (ادامه پیوسته شماره‌ها)
           trojan_output = []
-          for cfg in trojan_cleaned:
-              trojan_output.append(f"{cfg}#{tag_srvt}{current_num}")
-              current_num += 1
 
-          # ذخیره فایل‌های خروجی
+          # ۶. اعمال فقط کانفیگ‌های زنده و برچسب‌گذاری
+          for item in parsed_candidates:
+              if (item['host'], item['port']) not in alive_targets:
+                  continue
+
+              proto = item['proto']
+              base_url = item['base_url']
+
+              if proto in ("hysteria2", "hy2"):
+                  tag = urllib.parse.quote(f"♾️ULTRA-TITAN-SRV-{counter}")
+                  hy2_output.append(f"{base_url}#{tag}")
+                  counter += 1
+              elif proto == "vless":
+                  tag = urllib.parse.quote(f"♾️ULTRA-TITAN-SRVT-{counter}")
+                  vless_output.append(f"{base_url}#{tag}")
+                  counter += 1
+              elif proto == "trojan":
+                  tag = urllib.parse.quote(f"♾️ULTRA-TITAN-SRVT-{counter}")
+                  trojan_output.append(f"{base_url}#{tag}")
+                  counter += 1
+
+          # ذخیره فایل‌های خروجی گلچین‌شده
           with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(hy2_output) + ("\n" if hy2_output else ""))
 
@@ -182,21 +178,22 @@ jobs:
               f.write("\n".join(vless_output) + ("\n" if vless_output else ""))
 
           with open("trojan_filtered.txt", "w", encoding="utf-8") as f:
-              f.write("\n".join(trojan_final_output := trojan_output) + ("\n" if trojan_output else ""))
+              f.write("\n".join(trojan_output) + ("\n" if trojan_output else ""))
 
-          # ذخیره آخرین شماره برای اجرای بعدی
-          total_configs = len(hy2_output) + len(vless_output) + len(trojan_output)
-          last_saved_num = current_num - 1 if total_configs > 0 else (start_counter - 1 if start_counter > 1 else 0)
-          with open(counter_file, "w", encoding="utf-8") as f:
-              f.write(str(last_saved_num))
+          with open("counter.txt", "w", encoding="utf-8") as f:
+              f.write(str(counter))
 
-          print(f"🎉 فایل‌های خروجی با موفقیت ساخته شدند.")
-          print(f"🔢 شماره‌گذاری پیوسته از {start_counter} تا {last_saved_num} ثبت گردید.")
+          print(f"✨ Finished! Saved {len(hy2_output)} Hy2, {len(vless_output)} VLESS, and {len(trojan_output)} Trojan alive configs.")
           EOF
 
       - name: Commit and Push Changes
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add hy2_filtered.txt vless_filtered.txt trojan_filtered.txt counter.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update Hy2, Vless and Trojan configs [skip ci]" && git push)
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Auto-update: ping-checked & deduplicated configs"
+            git push origin HEAD:${{ github.ref }}
+          fi
