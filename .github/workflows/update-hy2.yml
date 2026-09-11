@@ -62,7 +62,7 @@ jobs:
               except Exception as e:
                   print(f"❌ خطا در خواندن custom.txt -> {e}")
 
-          # ۲. خواندن سورس‌های عمومی (فقط هیستریا)
+          # ۲. خواندن سورس‌های عمومی (استخراج پروتکل‌های مدنظر)
           for url in PUBLIC_URLS:
               try:
                   res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
@@ -77,15 +77,17 @@ jobs:
                   print(f"❌ خطا در دانلود: {url} -> {e}")
 
           seen_keys = set()
-          cleaned_configs = []
+          hy2_cleaned = []
+          vless_cleaned = []
+          trojan_cleaned = []
 
-          PUBLIC_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
+          TARGET_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://", "vless://", "trojan://")
           CUSTOM_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://", "vless://", "trojan://", "vmess://", "ss://", "tuic://")
 
           print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری...")
           for line, is_custom in raw_items:
               line = line.strip()
-              allowed = CUSTOM_PROTOCOLS if is_custom else PUBLIC_PROTOCOLS
+              allowed = CUSTOM_PROTOCOLS if is_custom else TARGET_PROTOCOLS
               if not line.startswith(allowed): continue
 
               # فیلتر کردن کانفیگ‌های ناامن (حذف اخطارهای SSL و خطرات MITM)
@@ -95,7 +97,8 @@ jobs:
 
               try:
                   parsed = urlparse(line)
-                  # جدا کردن بخش کاربری از آدرس سرور
+                  # جدا کردن بخش کاربری (UUID/Password) از آدرس سرور
+                  user_info = parsed.netloc.split('@')[0] if '@' in parsed.netloc else ''
                   netloc = parsed.netloc.split('@')[-1]
                   
                   # مدیریت هاست و پورت (سازگار با پورت پیش‌فرض و Port Hopping)
@@ -111,21 +114,29 @@ jobs:
                   query_params = parse_qs(parsed.query)
                   sni = query_params.get('sni', [''])[0].lower().strip()
 
-                  # کلید یکتا: پروتکل + آدرس + پورت + SNI
+                  # کلید یکتا برای تفکیک دقیق کانفیگ‌ها
                   proto = parsed.scheme.lower()
-                  unique_key = f"{proto}:{host}:{port}:{sni}"
+                  unique_key = f"{proto}:{user_info}@{host}:{port}:{sni}"
 
                   if unique_key not in seen_keys:
                       seen_keys.add(unique_key)
                       
                       # پاکسازی تگ قبلی برای شماره‌گذاری تمیز
                       base_config = line.split('#')[0].strip()
-                      cleaned_configs.append(base_config)
+                      
+                      if proto in ("hysteria2", "hysteria", "hy2"):
+                          hy2_cleaned.append(base_config)
+                      elif proto == "vless":
+                          vless_cleaned.append(base_config)
+                      elif proto == "trojan":
+                          trojan_cleaned.append(base_config)
 
               except Exception:
                   continue
 
-          print(f"✨ تعداد کل کانفیگ‌های یکتای پیدا شده: {len(cleaned_configs)}")
+          print(f"✨ تعداد هیستریا یکتا: {len(hy2_cleaned)}")
+          print(f"✨ تعداد VLESS یکتا: {len(vless_cleaned)}")
+          print(f"✨ تعداد Trojan یکتا: {len(trojan_cleaned)}")
 
           # خواندن آخرین شماره از فایل counter.txt
           counter_file = "counter.txt"
@@ -139,31 +150,53 @@ jobs:
               except Exception:
                   pass
 
-          # شماره‌گذاری یکدست به فرمت اختصاصی
-          final_output = []
           current_num = start_counter
-          tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
 
-          for cfg in cleaned_configs:
-              final_output.append(f"{cfg}#{tag_prefix}{current_num}")
+          # تگ‌های اختصاصی
+          tag_hy2 = quote("♾️ULTRA-TITAN-SRV-")
+          tag_srvt = quote("♾️ULTRA-TITAN-SRVT-")
+
+          # ۱. پردازش و شماره‌گذاری Hysteria2
+          hy2_output = []
+          for cfg in hy2_cleaned:
+              hy2_output.append(f"{cfg}#{tag_hy2}{current_num}")
               current_num += 1
 
-          # ذخیره فایل خروجی کانفیگ‌ها
+          # ۲. پردازش و شماره‌گذاری VLESS (ادامه پیوسته شماره‌ها)
+          vless_output = []
+          for cfg in vless_cleaned:
+              vless_output.append(f"{cfg}#{tag_srvt}{current_num}")
+              current_num += 1
+
+          # ۳. پردازش و شماره‌گذاری Trojan (ادامه پیوسته شماره‌ها)
+          trojan_output = []
+          for cfg in trojan_cleaned:
+              trojan_output.append(f"{cfg}#{tag_srvt}{current_num}")
+              current_num += 1
+
+          # ذخیره فایل‌های خروجی
           with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
-              f.write("\n".join(final_output) + ("\n" if final_output else ""))
+              f.write("\n".join(hy2_output) + ("\n" if hy2_output else ""))
+
+          with open("vless_filtered.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(vless_output) + ("\n" if vless_output else ""))
+
+          with open("trojan_filtered.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(trojan_final_output := trojan_output) + ("\n" if trojan_output else ""))
 
           # ذخیره آخرین شماره برای اجرای بعدی
-          last_saved_num = current_num - 1 if final_output else (start_counter - 1 if start_counter > 1 else 0)
+          total_configs = len(hy2_output) + len(vless_output) + len(trojan_output)
+          last_saved_num = current_num - 1 if total_configs > 0 else (start_counter - 1 if start_counter > 1 else 0)
           with open(counter_file, "w", encoding="utf-8") as f:
               f.write(str(last_saved_num))
 
-          print(f"🎉 فایل hy2_filtered.txt با موفقیت ساخته شد.")
-          print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} انجام شد.")
+          print(f"🎉 فایل‌های خروجی با موفقیت ساخته شدند.")
+          print(f"🔢 شماره‌گذاری پیوسته از {start_counter} تا {last_saved_num} ثبت گردید.")
           EOF
 
       - name: Commit and Push Changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add hy2_filtered.txt counter.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update Hy2 configs [skip ci]" && git push)
+          git add hy2_filtered.txt vless_filtered.txt trojan_filtered.txt counter.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update Hy2, Vless and Trojan configs [skip ci]" && git push)
