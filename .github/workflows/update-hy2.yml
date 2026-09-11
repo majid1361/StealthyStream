@@ -93,9 +93,12 @@ jobs:
               if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
                   continue
 
-              try:
-                  parsed = urlparse(line)
+(line)
+
+                  # parsed = urlparse(line)
+
                   # جدا کردن بخش کاربری از آدرس سرور
+                  user_info = parsed.netloc.rsplit('@', 1)[0] if '@' in parsed.netloc else ''
                   netloc = parsed.netloc.split('@')[-1]
                   
                   # مدیریت هاست و پورت (سازگار با پورت پیش‌فرض و Port Hopping)
@@ -111,9 +114,9 @@ jobs:
                   query_params = parse_qs(parsed.query)
                   sni = query_params.get('sni', [''])[0].lower().strip()
 
-                  # کلید یکتا: پروتکل + آدرس + پورت + SNI
+                  # کلید یکتا: پروتکل + اطلاعات کاربری + آدرس + پورت + SNI
                   proto = parsed.scheme.lower()
-                  unique_key = f"{proto}:{host}:{port}:{sni}"
+                  unique_key = f"{proto}:{user_info}:{host}:{port}:{sni}"
 
                   if unique_key not in seen_keys:
                       seen_keys.add(unique_key)
