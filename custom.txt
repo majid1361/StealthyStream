@@ -1,9 +1,0 @@
-vless://fe9750e5-f224-4097-a9b2-ea3b736332ee@62.238.18.245:30301?security=&encryption=none&host=play-apps-features.googleusercontent.com&headerType=http&type=tcp#%40proxy_kafee
-trojan://humanity@172.67.149.60:443?path=%2Fassignment&security=tls&insecure=0&host=www.ignitelimit.com&ech=ip.gs%2Budp%3A%2F%2F8.8.8.8&type=ws&allowInsecure=0&sni=www.ignitelimit.com#%40proxy_kafee
-vless://238e492b-bc20-4380-92b6-135d39112ca4@109.68.212.173:443?security=reality&encryption=none&pbk=Nb9IwEEhUHEbHSc6e5uYTjxDgN4ZExhDckM3OgYhj2o&headerType=none&fp=qq&spx=%2F&type=tcp&flow=xtls-rprx-vision&sni=api8.eaglors.com&sid=52ccb3687fe0b7ec#%40proxy_kafee
-hysteria2://QCgqi_I4EkV8UR-OgQ_tG4EnVTEVvIyR2GgRBzrIn2s@162.249.125.133:443?security=tls&obfs=salamander&obfs-password=c1b4086fea89914496c7e10967a419216566&insecure=0&sni=hy2-new.aspidnet.xyz#%40proxy_kafee
-trojan://humanity@render.com:443?path=%2Fassignment&security=tls&insecure=0&host=www.ignitelimit.com&ech=ip.gs%2Budp%3A%2F%2F8.8.8.8&type=ws&allowInsecure=0#%40proxy_kafee
-vless://dfad3362-8534-4495-bf49-89f2ae229e7a@77.223.119.80:8200?security=reality&encryption=none&pbk=1KrzmnGnXweOpiuDle8bRNY6BPXWsD7ufzx1uFurl1c&headerType=none&fp=firefox&type=tcp&flow=xtls-rprx-vision&sni=ru01.arpanet-cdn.com#%40proxy_kafee
-trojan://humanity@188.114.97.7:443?path=%2Fassignment&security=tls&insecure=0&ech=ip.gs%2Budp%3A%2F%2F8.8.8.8&type=ws&allowInsecure=0&sni=www.ignitelimit.com#%40proxy_kafee
-trojan://humanity@130.250.137.171:443?path=%2Fassignment&security=tls&insecure=0&host=www.ignitelimit.com&ech=ip.gs%2Budp%3A%2F%2F8.8.8.8&type=ws&allowInsecure=0&sni=www.ignitelimit.com#%40proxy_kafee
-trojan://humanity@www.speedtest.net:443?path=%2Fassignment&security=tls&insecure=0&host=www.ignitelimit.com&ech=ip.gs%2Budp%3A%2F%2F8.8.8.8&type=ws&allowInsecure=0&sni=www.ignitelimit.com#%40proxy_kafee
