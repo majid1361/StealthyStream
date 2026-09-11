@@ -34,6 +34,7 @@ jobs:
           import requests
           from bs4 import BeautifulSoup
           from urllib.parse import urlparse, parse_qs, quote
+          from html import unescape
 
           URLS = [
               "https://raw.githubusercontent.com/majid1361/StealthyStream/main/custom.txt",
@@ -87,27 +88,40 @@ jobs:
               except Exception as e:
                   print(f"❌ خطا در دانلود: {url} -> {e}")
 
-          print("\n📱 در حال اسکرپ عمیق کانال‌های تلگرام (نسخه وب)...")
-          hy2_regex = re.compile(r'hysteria2://[^\s<>"\'`]+', re.IGNORECASE)
+          print("\n📱 در حال اسکرپ عمیق کانال‌های تلگرام (نسخه وب با استخراج هوشمند)...")
+          # الگوی اصلاح شده برای شکار لینک‌های کامل حتی اگر در متن پراکنده باشند
+          hy2_regex = re.compile(r'(hysteria2?://[^\s<>"\'`]+)', re.IGNORECASE)
 
           for channel in TELEGRAM_CHANNELS:
               ch_name = channel.lstrip('@')
               t_url = f"https://t.me/s/{ch_name}"
               tg_count = 0
               
-              # ورق زدن به عقب تا ۳ صفحه (پوشش کامل ۱۰۰+ پیام اخیر)
               for _ in range(3):
                   try:
                       res = requests.get(t_url, headers=HEADERS, timeout=TIMEOUT)
                       if res.status_code != 200:
                           break
                       
-                      found_configs = hy2_regex.findall(res.text)
+                      # --- بخش اصلاح شده برای حل مشکل Collapsed و شکستگی لینک ---
+                      # ۱. تبدیل HTML به متن خام و باز کردن کاراکترهای خاص
+                      html_content = res.text
+                      # ۲. حذف تگ‌های HTML اما حفظ ساختار متنی (جایگزینی تگ‌ها با فاصله)
+                      text_only = re.sub(r'<[^>]+>', ' ', html_content)
+                      # ۳. حذف کاراکترهای خط‌شکن برای یکپارچه کردن متن (حل مشکل لینک‌های شکسته)
+                      text_only = text_only.replace('\n', ' ').replace('\r', ' ')
+                      # ۴. Unescape برای تبدیل &amp; به & و غیره
+                      clean_text = unescape(text_only)
+                      
+                      # ۵. حالا با Regex از دل این متن یکپارچه، لینک‌ها رو بیرون می‌کشیم
+                      found_configs = hy2_regex.findall(clean_text)
+                      
+                      # پاکسازی نهایی کاراکترهای احتمالی در انتهای لینک
                       clean_tg_configs = [c.rstrip('.,;()[]{}') for c in found_configs]
                       raw_lines.extend(clean_tg_configs)
                       tg_count += len(clean_tg_configs)
 
-                      # بررسی وجود دکمه رفتن به پیام‌های قدیمی‌تر
+                      # بررسی برای رفتن به پیام‌های قدیمی‌تر
                       soup = BeautifulSoup(res.text, 'html.parser')
                       prev_btn = soup.find('a', dict(class_='tme_messages_more'))
                       if prev_btn and 'href' in prev_btn.attrs:
@@ -128,17 +142,14 @@ jobs:
               if not line.startswith(("hysteria2://", "hy2://")):
                   continue
 
-              # فیلتر کردن کانفیگ‌های ناامن (حذف اخطارهای SSL و خطرات MITM)
               line_lower = line.lower()
               if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
                   continue
 
               try:
                   parsed = urlparse(line)
-                  # جدا کردن بخش کاربری از آدرس سرور
                   netloc = parsed.netloc.split('@')[-1]
                   
-                  # مدیریت هاست و پورت (سازگار با پورت پیش‌فرض و Port Hopping)
                   if ':' in netloc:
                       host, port = netloc.split(':', 1)
                   else:
@@ -147,28 +158,22 @@ jobs:
                   host = host.lower().strip()
                   port = port.strip()
 
-                  # اعتبارسنجی سلامت هاست و پورت (حذف کانفیگ‌های ناقص مثل -1 یا نامعتبر)
                   if not host or '.' not in host:
                       continue
 
-                  # چک کردن بازه پورت عددی یا ساختار پورت هاپینگ
                   if port.isdigit():
                       if not (1 <= int(port) <= 65535):
                           continue
                   elif not any(char.isdigit() for char in port):
                       continue
 
-                  # استخراج و نرمال‌سازی SNI
                   query_params = parse_qs(parsed.query)
                   sni = query_params.get('sni', [''])[0].lower().strip()
 
-                  # کلید یکتا: آدرس + پورت + SNI
                   unique_key = f"{host}:{port}:{sni}"
 
                   if unique_key not in seen_keys:
                       seen_keys.add(unique_key)
-                      
-                      # پاکسازی تگ قبلی برای شماره‌گذاری تمیز
                       base_config = line.split('#')[0].strip()
                       cleaned_configs.append(base_config)
 
@@ -177,7 +182,6 @@ jobs:
 
           print(f"✨ تعداد کل کانفیگ‌های یکتای پیدا شده: {len(cleaned_configs)}")
 
-          # خواندن آخرین شماره از فایل counter.txt
           counter_file = "counter.txt"
           start_counter = 1
           if os.path.exists(counter_file):
@@ -189,7 +193,6 @@ jobs:
               except Exception:
                   pass
 
-          # شماره‌گذاری یکدست به فرمت اختصاصی
           final_output = []
           current_num = start_counter
           tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
@@ -198,11 +201,9 @@ jobs:
               final_output.append(f"{cfg}#{tag_prefix}{current_num}")
               current_num += 1
 
-          # ذخیره فایل خروجی کانفیگ‌ها
           with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(final_output) + ("\n" if final_output else ""))
 
-          # ذخیره آخرین شماره برای اجرای بعدی
           last_saved_num = current_num - 1 if final_output else (start_counter - 1 if start_counter > 1 else 0)
           with open(counter_file, "w", encoding="utf-8") as f:
               f.write(str(last_saved_num))
