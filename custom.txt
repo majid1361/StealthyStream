@@ -1,1 +1,0 @@
-vless://fdaafea8-afc7-4ece-9dc4-1e2609c43913@188.225.24.89:8449?security=reality&encryption=none&pbk=XF3wXFapd311fC0M0APxbrf3cIaGnyKU7BR4Pv_l7Rs&headerType=&fp=firefox&type=tcp&flow=xtls-rprx-vision&sni=akashi.vk-portal.net&sid=15954a1c5a3d5bfc#%F0%9F%87%B7%F0%9F%87%BA%20369%20-%20RU%20-%20VLESS%2FRAW%2FREALITY%2FPBK%2FSID%2FVISION%2FUTLS%20-%208449
