@@ -26,15 +26,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      - name: Fetch, Ping-Check, Deduplicate and Normalize Configs
+      - name: Fetch, Deduplicate and Normalize Configs
         run: |
           python - << 'EOF'
           import os
           import re
-          import socket
           import requests
           from urllib.parse import urlparse, parse_qs, quote
-          from concurrent.futures import ThreadPoolExecutor
 
           PUBLIC_URLS = [
               "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/all_extracted_configs.txt",
@@ -78,22 +76,15 @@ jobs:
               except Exception as e:
                   print(f"❌ خطا در دانلود: {url} -> {e}")
 
-          # تابع تست باز بودن پورت و آنلاین بودن سرور (TCP Ping)
-          def is_server_alive(target):
-              host, port = target
-              try:
-                  with socket.create_connection((host, int(port)), timeout=1.2):
-                      return True
-              except Exception:
-                  return False
-
           seen_keys = set()
-          parsed_candidates = []
+          hy2_cleaned = []
+          vless_cleaned = []
+          trojan_cleaned = []
 
           TARGET_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://", "vless://", "trojan://")
           CUSTOM_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://", "vless://", "trojan://", "vmess://", "ss://", "tuic://")
 
-          print("\n🔍 در حال بررسی، فیلتر امنیتی و حذف موارد تکراری...")
+          print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری...")
           for line, is_custom in raw_items:
               line = line.strip()
               allowed = CUSTOM_PROTOCOLS if is_custom else TARGET_PROTOCOLS
@@ -113,16 +104,11 @@ jobs:
                   # مدیریت هاست و پورت (سازگار با پورت پیش‌فرض و Port Hopping)
                   if ':' in netloc:
                       host, port = netloc.split(':', 1)
-                      # در صورت وجود port hopping (مثلا 443,500-600) پورت اول تست می‌شود
-                      port = re.split(r'[,-]', port)[0].strip()
                   else:
                       host, port = netloc, '443'
                   
                   host = host.lower().strip()
                   port = port.strip()
-
-                  if not host or not port.isdigit():
-                      continue
 
                   # استخراج و نرمال‌سازی SNI
                   query_params = parse_qs(parsed.query)
@@ -134,57 +120,23 @@ jobs:
 
                   if unique_key not in seen_keys:
                       seen_keys.add(unique_key)
+                      
+                      # پاکسازی تگ قبلی برای شماره‌گذاری تمیز
                       base_config = line.split('#')[0].strip()
-                      parsed_candidates.append({
-                          'proto': proto,
-                          'host': host,
-                          'port': int(port),
-                          'base_config': base_config,
-                          'is_custom': is_custom
-                      })
+                      
+                      if proto in ("hysteria2", "hysteria", "hy2"):
+                          hy2_cleaned.append(base_config)
+                      elif proto == "vless":
+                          vless_cleaned.append(base_config)
+                      elif proto == "trojan":
+                          trojan_cleaned.append(base_config)
 
               except Exception:
                   continue
 
-          print(f"📊 کانفیگ‌های یکتا شناسایی‌شده: {len(parsed_candidates)}")
-          print("⚡ در حال تست پینگ و بررسی زنده بودن سرورها (Multi-threading)...")
-
-          # استخراج تارگت‌های یکتا برای جلوگیری از تست پینگ تکراری
-          unique_targets = list({(c['host'], c['port']) for c in parsed_candidates})
-          alive_targets = set()
-
-          # اجرای تست پینگ همزمان با ۶۰ ترد جهت سرعت فوق‌العاده
-          with ThreadPoolExecutor(max_workers=60) as executor:
-              results = executor.map(is_server_alive, unique_targets)
-              for target, is_alive in zip(unique_targets, results):
-                  if is_alive:
-                      alive_targets.add(target)
-
-          print(f"✅ سرورهای پاسخگو و آنلاین: {len(alive_targets)} از {len(unique_targets)}")
-
-          hy2_cleaned = []
-          vless_cleaned = []
-          trojan_cleaned = []
-
-          # دسته‌بندی فقط کانفیگ‌های زنده (کانفیگ‌های custom همیشه اولویت دارند)
-          for item in parsed_candidates:
-              target = (item['host'], item['port'])
-              if not item['is_custom'] and target not in alive_targets:
-                  continue
-
-              proto = item['proto']
-              base_config = item['base_config']
-
-              if proto in ("hysteria2", "hysteria", "hy2"):
-                  hy2_cleaned.append(base_config)
-              elif proto == "vless":
-                  vless_cleaned.append(base_config)
-              elif proto == "trojan":
-                  trojan_cleaned.append(base_config)
-
-          print(f"✨ تعداد هیستریا زنده: {len(hy2_cleaned)}")
-          print(f"✨ تعداد VLESS زنده: {len(vless_cleaned)}")
-          print(f"✨ تعداد Trojan زنده: {len(trojan_cleaned)}")
+          print(f"✨ تعداد هیستریا یکتا: {len(hy2_cleaned)}")
+          print(f"✨ تعداد VLESS یکتا: {len(vless_cleaned)}")
+          print(f"✨ تعداد Trojan یکتا: {len(trojan_cleaned)}")
 
           # خواندن آخرین شماره از فایل counter.txt
           counter_file = "counter.txt"
@@ -230,7 +182,7 @@ jobs:
               f.write("\n".join(vless_output) + ("\n" if vless_output else ""))
 
           with open("trojan_filtered.txt", "w", encoding="utf-8") as f:
-              f.write("\n".join(trojan_output) + ("\n" if trojan_output else ""))
+              f.write("\n".join(trojan_final_output := trojan_output) + ("\n" if trojan_output else ""))
 
           # ذخیره آخرین شماره برای اجرای بعدی
           total_configs = len(hy2_output) + len(vless_output) + len(trojan_output)
