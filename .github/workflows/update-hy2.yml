@@ -24,7 +24,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4
+          pip install requests
 
       - name: Fetch, Deduplicate and Normalize Configs
         run: |
@@ -32,9 +32,7 @@ jobs:
           import os
           import re
           import requests
-          from bs4 import BeautifulSoup
           from urllib.parse import urlparse, parse_qs, quote
-          from html import unescape
 
           URLS = [
               "https://raw.githubusercontent.com/majid1361/StealthyStream/main/custom.txt",
@@ -46,36 +44,14 @@ jobs:
               "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
           ]
 
-          TELEGRAM_CHANNELS = [
-              "makvaslim",
-              "proxy_kafee",
-              "persianvpnhub",
-              "v2ray_dalghak1",
-              "prrofile_purple",
-              "free1_vpn",
-              "Hope_Net",
-              "FreakConfig",
-              "V2ray_worlds",
-              "VpnProxy4free",
-              "Filtershekan_channel",
-              "PrivateVPNs",
-              "v2rayNG_Matsuri",
-              "Shh_Proxy",
-              "VmessProtocol",
-              "Outline_ir",
-              "v2ray_free_conf",
-              "v2rayng_org",
-              "Outline_Vpn"
-          ]
-
           TIMEOUT = 15
           HEADERS = {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
           }
 
           raw_lines = []
 
-          print("📥 در حال دریافت کانفیگ‌ها از منابع URL...")
+          print("📥 در حال دریافت کانفیگ‌ها از منابع جدید...")
           for url in URLS:
               try:
                   res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
@@ -88,68 +64,25 @@ jobs:
               except Exception as e:
                   print(f"❌ خطا در دانلود: {url} -> {e}")
 
-          print("\n📱 در حال اسکرپ عمیق کانال‌های تلگرام (نسخه وب با استخراج هوشمند)...")
-          # الگوی اصلاح شده برای شکار لینک‌های کامل حتی اگر در متن پراکنده باشند
-          hy2_regex = re.compile(r'(hysteria2?://[^\s<>"\'`]+)', re.IGNORECASE)
-
-          for channel in TELEGRAM_CHANNELS:
-              ch_name = channel.lstrip('@')
-              t_url = f"https://t.me/s/{ch_name}"
-              tg_count = 0
-              
-              for _ in range(3):
-                  try:
-                      res = requests.get(t_url, headers=HEADERS, timeout=TIMEOUT)
-                      if res.status_code != 200:
-                          break
-                      
-                      # --- بخش اصلاح شده برای حل مشکل Collapsed و شکستگی لینک ---
-                      # ۱. تبدیل HTML به متن خام و باز کردن کاراکترهای خاص
-                      html_content = res.text
-                      # ۲. حذف تگ‌های HTML اما حفظ ساختار متنی (جایگزینی تگ‌ها با فاصله)
-                      text_only = re.sub(r'<[^>]+>', ' ', html_content)
-                      # ۳. حذف کاراکترهای خط‌شکن برای یکپارچه کردن متن (حل مشکل لینک‌های شکسته)
-                      text_only = text_only.replace('\n', ' ').replace('\r', ' ')
-                      # ۴. Unescape برای تبدیل &amp; به & و غیره
-                      clean_text = unescape(text_only)
-                      
-                      # ۵. حالا با Regex از دل این متن یکپارچه، لینک‌ها رو بیرون می‌کشیم
-                      found_configs = hy2_regex.findall(clean_text)
-                      
-                      # پاکسازی نهایی کاراکترهای احتمالی در انتهای لینک
-                      clean_tg_configs = [c.rstrip('.,;()[]{}') for c in found_configs]
-                      raw_lines.extend(clean_tg_configs)
-                      tg_count += len(clean_tg_configs)
-
-                      # بررسی برای رفتن به پیام‌های قدیمی‌تر
-                      soup = BeautifulSoup(res.text, 'html.parser')
-                      prev_btn = soup.find('a', dict(class_='tme_messages_more'))
-                      if prev_btn and 'href' in prev_btn.attrs:
-                          t_url = "https://t.me" + prev_btn['href']
-                      else:
-                          break
-                  except Exception:
-                      break
-
-              print(f"✅ TG @{ch_name:<20}: {tg_count} کانفیگ Hy2 دریافت شد")
-
           seen_keys = set()
           cleaned_configs = []
 
           print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری...")
           for line in raw_lines:
               line = line.strip()
-              if not line.startswith(("hysteria2://", "hy2://")):
-                  continue
+              if not line.startswith(("hysteria2://", "hy2://")): continue
 
+              # فیلتر کردن کانفیگ‌های ناامن (حذف اخطارهای SSL و خطرات MITM)
               line_lower = line.lower()
               if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
                   continue
 
               try:
                   parsed = urlparse(line)
+                  # جدا کردن بخش کاربری از آدرس سرور
                   netloc = parsed.netloc.split('@')[-1]
                   
+                  # مدیریت هاست و پورت (سازگار با پورت پیش‌فرض و Port Hopping)
                   if ':' in netloc:
                       host, port = netloc.split(':', 1)
                   else:
@@ -158,22 +91,17 @@ jobs:
                   host = host.lower().strip()
                   port = port.strip()
 
-                  if not host or '.' not in host:
-                      continue
-
-                  if port.isdigit():
-                      if not (1 <= int(port) <= 65535):
-                          continue
-                  elif not any(char.isdigit() for char in port):
-                      continue
-
+                  # استخراج و نرمال‌سازی SNI
                   query_params = parse_qs(parsed.query)
                   sni = query_params.get('sni', [''])[0].lower().strip()
 
+                  # کلید یکتا: آدرس + پورت + SNI
                   unique_key = f"{host}:{port}:{sni}"
 
                   if unique_key not in seen_keys:
                       seen_keys.add(unique_key)
+                      
+                      # پاکسازی تگ قبلی برای شماره‌گذاری تمیز
                       base_config = line.split('#')[0].strip()
                       cleaned_configs.append(base_config)
 
@@ -182,6 +110,7 @@ jobs:
 
           print(f"✨ تعداد کل کانفیگ‌های یکتای پیدا شده: {len(cleaned_configs)}")
 
+          # خواندن آخرین شماره از فایل counter.txt
           counter_file = "counter.txt"
           start_counter = 1
           if os.path.exists(counter_file):
@@ -193,6 +122,7 @@ jobs:
               except Exception:
                   pass
 
+          # شماره‌گذاری یکدست به فرمت اختصاصی
           final_output = []
           current_num = start_counter
           tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
@@ -201,9 +131,11 @@ jobs:
               final_output.append(f"{cfg}#{tag_prefix}{current_num}")
               current_num += 1
 
+          # ذخیره فایل خروجی کانفیگ‌ها
           with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(final_output) + ("\n" if final_output else ""))
 
+          # ذخیره آخرین شماره برای اجرای بعدی
           last_saved_num = current_num - 1 if final_output else (start_counter - 1 if start_counter > 1 else 0)
           with open(counter_file, "w", encoding="utf-8") as f:
               f.write(str(last_saved_num))
