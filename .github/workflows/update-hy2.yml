@@ -27,6 +27,9 @@ jobs:
           pip install requests
 
       - name: Fetch, Deduplicate and Normalize Configs
+        env:
+          PYTHONUNBUFFERED: "1"
+          PYTHONIOENCODING: "utf-8"
         run: |
           python - << 'EOF'
           import os
@@ -57,7 +60,8 @@ jobs:
                   with open("custom.txt", "r", encoding="utf-8") as f:
                       lines = f.read().replace('\r', '').split('\n')
                       for line in lines:
-                          raw_items.append((line, True))
+                          if line.strip():
+                              raw_items.append((line, True))
                   print("✅ موفق: custom.txt")
               except Exception as e:
                   print(f"❌ خطا در خواندن custom.txt -> {e}")
@@ -69,7 +73,8 @@ jobs:
                   if res.status_code == 200:
                       lines = res.text.replace('\r', '').split('\n')
                       for line in lines:
-                          raw_items.append((line, False))
+                          if line.strip():
+                              raw_items.append((line, False))
                       print(f"✅ موفق: {url}")
                   else:
                       print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
@@ -86,7 +91,8 @@ jobs:
           for line, is_custom in raw_items:
               line = line.strip()
               allowed = CUSTOM_PROTOCOLS if is_custom else PUBLIC_PROTOCOLS
-              if not line.startswith(allowed): continue
+              if not line.startswith(allowed):
+                  continue
 
               # فیلتر کردن کانفیگ‌های ناامن (حذف اخطارهای SSL و خطرات MITM)
               line_lower = line.lower()
