@@ -93,10 +93,8 @@ jobs:
               if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
                   continue
 
-(line)
-
-                  # parsed = urlparse(line)
-
+              try:
+                  parsed = urlparse(line)
                   # جدا کردن بخش کاربری از آدرس سرور
                   user_info = parsed.netloc.rsplit('@', 1)[0] if '@' in parsed.netloc else ''
                   netloc = parsed.netloc.split('@')[-1]
