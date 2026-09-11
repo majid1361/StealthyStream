@@ -27,9 +27,6 @@ jobs:
           pip install requests
 
       - name: Fetch, Deduplicate and Normalize Configs
-        env:
-          PYTHONUNBUFFERED: "1"
-          PYTHONIOENCODING: "utf-8"
         run: |
           python - << 'EOF'
           import os
@@ -37,7 +34,8 @@ jobs:
           import requests
           from urllib.parse import urlparse, parse_qs, quote
 
-          PUBLIC_URLS = [
+          URLS = [
+              "https://raw.githubusercontent.com/majid1361/StealthyStream/main/custom.txt",
               "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/all_extracted_configs.txt",
               "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2",
               "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/main/configs/proxy_configs.txt",
@@ -51,30 +49,15 @@ jobs:
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
           }
 
-          raw_items = []
+          raw_lines = []
 
           print("📥 در حال دریافت کانفیگ‌ها از منابع جدید...")
-          # ۱. خواندن فایل کاستوم خودت (با دسترسی به همه پروتکل‌ها)
-          if os.path.exists("custom.txt"):
-              try:
-                  with open("custom.txt", "r", encoding="utf-8") as f:
-                      lines = f.read().replace('\r', '').split('\n')
-                      for line in lines:
-                          if line.strip():
-                              raw_items.append((line, True))
-                  print("✅ موفق: custom.txt")
-              except Exception as e:
-                  print(f"❌ خطا در خواندن custom.txt -> {e}")
-
-          # ۲. خواندن سورس‌های عمومی (فقط هیستریا)
-          for url in PUBLIC_URLS:
+          for url in URLS:
               try:
                   res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
                   if res.status_code == 200:
                       lines = res.text.replace('\r', '').split('\n')
-                      for line in lines:
-                          if line.strip():
-                              raw_items.append((line, False))
+                      raw_lines.extend(lines)
                       print(f"✅ موفق: {url}")
                   else:
                       print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
@@ -84,15 +67,10 @@ jobs:
           seen_keys = set()
           cleaned_configs = []
 
-          PUBLIC_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
-          CUSTOM_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://", "vless://", "trojan://", "vmess://", "ss://", "tuic://")
-
           print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری...")
-          for line, is_custom in raw_items:
+          for line in raw_lines:
               line = line.strip()
-              allowed = CUSTOM_PROTOCOLS if is_custom else PUBLIC_PROTOCOLS
-              if not line.startswith(allowed):
-                  continue
+              if not line.startswith(("hysteria2://", "hy2://")): continue
 
               # فیلتر کردن کانفیگ‌های ناامن (حذف اخطارهای SSL و خطرات MITM)
               line_lower = line.lower()
@@ -117,9 +95,8 @@ jobs:
                   query_params = parse_qs(parsed.query)
                   sni = query_params.get('sni', [''])[0].lower().strip()
 
-                  # کلید یکتا: پروتکل + آدرس + پورت + SNI
-                  proto = parsed.scheme.lower()
-                  unique_key = f"{proto}:{host}:{port}:{sni}"
+                  # کلید یکتا: آدرس + پورت + SNI
+                  unique_key = f"{host}:{port}:{sni}"
 
                   if unique_key not in seen_keys:
                       seen_keys.add(unique_key)
