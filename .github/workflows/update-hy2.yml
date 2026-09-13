@@ -64,6 +64,15 @@ jobs:
 
           HY2_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
           VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
+          
+          # --- بخش اصلاح شده: الگوهای ناامن ---
+          UNSAFE_PATTERNS = (
+              "insecure=1", "insecure=true", 
+              "allowinsecure=1", "allowinsecure=true", 
+              "skip-cert-verify=1", "skip-cert-verify=true", 
+              "tlsinsecure=1", "tlsinsecure=true", "mitm"
+          )
+          # -----------------------------------
 
           raw_hy2_items = []
           raw_vless_trojan_items = []
@@ -129,8 +138,11 @@ jobs:
               cleaned = []
               for line in raw_list:
                   line_lower = line.lower()
-                  if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
+                  
+                  # --- بخش اصلاح شده: فیلتر با ANY ---
+                  if any(pattern in line_lower for pattern in UNSAFE_PATTERNS):
                       continue
+                  # ----------------------------------
 
                   try:
                       parsed = urlparse(line)
