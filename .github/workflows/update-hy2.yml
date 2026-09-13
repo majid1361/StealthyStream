@@ -31,8 +31,9 @@ jobs:
           python - << 'EOF'
           import os
           import re
+          import base64
           import requests
-          from urllib.parse import urlparse, parse_qs, quote
+          from urllib.parse import urlparse, parse_qs
 
           PUBLIC_URLS = [
               "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/all_extracted_configs.txt",
@@ -59,11 +60,22 @@ jobs:
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
           }
 
+          def decode_content(text):
+              """دیکود هوشمند Base64 یا بازگرداندن متن ساده"""
+              text_clean = text.strip()
+              if not any(text_clean.startswith(p) for p in ["vless://", "trojan://", "hysteria2://", "hy2://", "vmess://", "ss://"]):
+                  try:
+                      decoded_bytes = base64.b64decode(text_clean + '=' * (-len(text_clean) % 4))
+                      return decoded_bytes.decode('utf-8', errors='ignore').replace('\r', '').split('\n')
+                  except Exception:
+                      pass
+              return text.replace('\r', '').split('\n')
+
           raw_items = []
           vt_raw_items = []
 
-          print("📥 در حال دریافت کانفیگ‌ها از منابع جدید...")
-          # ۱. خواندن فایل کاستوم خودت (با تفکیک پروتکل‌ها)
+          print("📥 در حال دریافت کانفیگ‌ها از منابع...")
+          # ۱. خواندن فایل کاستوم
           if os.path.exists("custom.txt"):
               try:
                   with open("custom.txt", "r", encoding="utf-8") as f:
@@ -81,7 +93,7 @@ jobs:
                   clean_url = url.split('#')[0].strip()
                   res = requests.get(clean_url, headers=HEADERS, timeout=TIMEOUT)
                   if res.status_code == 200:
-                      lines = res.text.replace('\r', '').split('\n')
+                      lines = decode_content(res.text)
                       for line in lines:
                           raw_items.append((line, False))
                       print(f"✅ موفق: {url}")
@@ -97,7 +109,7 @@ jobs:
                   clean_url = url.split('#')[0].strip()
                   res = requests.get(clean_url, headers=HEADERS, timeout=TIMEOUT)
                   if res.status_code == 200:
-                      lines = res.text.replace('\r', '').split('\n')
+                      lines = decode_content(res.text)
                       for line in lines:
                           vt_raw_items.append((line, False))
                       print(f"✅ موفق: {url}")
@@ -109,17 +121,13 @@ jobs:
           # ==================== پردازش لاین ۱: Hysteria ====================
           seen_keys = set()
           cleaned_configs = []
-
           PUBLIC_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
-          CUSTOM_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
 
           print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری Hysteria...")
           for line, is_custom in raw_items:
               line = line.strip()
-              allowed = CUSTOM_PROTOCOLS if is_custom else PUBLIC_PROTOCOLS
-              if not line.startswith(allowed): continue
+              if not line.startswith(PUBLIC_PROTOCOLS): continue
 
-              # فیلتر کردن کانفیگ‌های ناامن (حذف اخطارهای SSL و خطرات MITM)
               line_lower = line.lower()
               if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
                   continue
@@ -169,7 +177,10 @@ jobs:
 
               try:
                   parsed = urlparse(line)
-                  user_info = parsed.netloc.rsplit('@', 1)[0] if '@' in parsed.netloc else ''
+                  if '@' not in parsed.netloc:
+                      continue
+
+                  user_info = parsed.netloc.rsplit('@', 1)[0]
                   netloc = parsed.netloc.split('@')[-1]
                   
                   if ':' in netloc:
@@ -179,6 +190,8 @@ jobs:
                   
                   host = host.lower().strip()
                   port = port.strip()
+                  if not host or not port.isdigit():
+                      continue
 
                   query_params = parse_qs(parsed.query)
                   sni = query_params.get('sni', [''])[0].lower().strip()
@@ -212,19 +225,17 @@ jobs:
 
           # ۱. خروجی هیستریا
           final_output = []
-          tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
           for cfg in cleaned_configs:
-              final_output.append(f"{cfg}#{tag_prefix}{current_num}")
+              final_output.append(f"{cfg}#♾️ULTRA-TITAN-SRV-{current_num}")
               current_num += 1
 
           with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(final_output) + ("\n" if final_output else ""))
 
-          # ۲. خروجی VLESS و Trojan
+          # ۲. خروجی VLESS و Trojan (تگ مستقیم بدون URL-encode خراب‌کننده)
           vt_final_output = []
-          vt_tag_prefix = quote("♾️ULTRA-TITAN-VT-")
           for cfg in vt_cleaned_configs:
-              vt_final_output.append(f"{cfg}#{vt_tag_prefix}{current_num}")
+              vt_final_output.append(f"{cfg}#♾️ULTRA-TITAN-VT-{current_num}")
               current_num += 1
 
           with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
