@@ -31,6 +31,7 @@ jobs:
           python - << 'EOF'
           import os
           import re
+          import html
           import base64
           import requests
           from urllib.parse import urlparse, parse_qs, quote
@@ -57,22 +58,44 @@ jobs:
               "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt"
           ]
 
+          # ۳. کانال‌های عمومی تلگرام (دریافت زنده جدیدترین پست‌ها)
+          TELEGRAM_CHANNELS = [
+              "makvaslim",
+              "proxy_kafee",
+              "persianvpnhub",
+              "v2ray_dalghak1",
+              "prrofile_purple",
+              "Hope_Net",
+              "FreakConfig",
+              "VpnProxy4free",
+              "V2ray_worlds",
+              "oneclickvpnkeys",
+              "free1_vpn",
+              "Outline_ir",
+              "Shh_Proxy",
+              "Filtershekan_channel",
+              "v2rayNG_Matsuri",
+              "VmessProtocol"
+          ]
+
           TIMEOUT = 15
           HEADERS = {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
           }
 
           HY2_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
           VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
           
-          # --- بخش اصلاح شده: الگوهای ناامن ---
+          # الگوهای ناامن
           UNSAFE_PATTERNS = (
               "insecure=1", "insecure=true", 
               "allowinsecure=1", "allowinsecure=true", 
               "skip-cert-verify=1", "skip-cert-verify=true", 
               "tlsinsecure=1", "tlsinsecure=true", "mitm"
           )
-          # -----------------------------------
+
+          # ریجکس قدرتمند برای استخراج کانفیگ از متون و کپشن‌های تلگرام
+          CONFIG_REGEX = re.compile(r'(?:vless|trojan|hysteria2|hysteria|hy2)://[^\s<>"\'`]+', re.IGNORECASE)
 
           raw_hy2_items = []
           raw_vless_trojan_items = []
@@ -99,13 +122,13 @@ jobs:
               text_stripped = text.strip()
               try:
                   decoded = base64.b64decode(text_stripped).decode('utf-8', errors='ignore')
-                  if any(p in decoded for p in ("vless://", "trojan://", "hysteria2://", "hysteria://")):
+                  if any(p in decoded for p in ("vless://", "trojan://", "hysteria2://", "hysteria://", "hy2://")):
                       return decoded
               except Exception:
                   pass
               return text
 
-          # تابع کمکی برای دانلود و پردازش ایمن
+          # تابع کمکی برای دانلود و پردازش ایمن سورس‌های گیت‌هاب/وب
           def fetch_urls(urls, target_protocols, target_list, label):
               for raw_url in urls:
                   url = raw_url.split('#')[0].strip()
@@ -126,11 +149,49 @@ jobs:
                   except Exception as e:
                       print(f"❌ خطا در دانلود ({label}): {url} -> {e}")
 
-          # دریافت هیستریا
-          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
+          # تابع اختصاصی برای اسکرپ جدیدترین پست‌های کانال‌های تلگرامی
+          def fetch_telegram_channels(channels):
+              print("\n📡 در حال اسکرپ کانال‌های تلگرامی...")
+              for ch in channels:
+                  ch_name = ch.strip().replace("https://t.me/", "").replace("@", "").split("/")[0]
+                  if not ch_name:
+                      continue
+                  url = f"https://t.me/s/{ch_name}"
+                  try:
+                      res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+                      if res.status_code == 200:
+                          # پاکسازی ساختار HTML تلگرام و تبدیل به متن تمیز
+                          page_text = res.text
+                          page_text = re.sub(r'<br\s*/?>', '\n', page_text)
+                          page_text = html.unescape(page_text)
+                          
+                          # استخراج همه کانفیگ‌ها از لابلای کپشن‌ها و توضیحات
+                          found_configs = CONFIG_REGEX.findall(page_text)
+                          hy2_count = 0
+                          vless_trojan_count = 0
 
-          # دریافت Vless و Trojan
+                          for cfg in found_configs:
+                              cfg_clean = cfg.strip().rstrip('.,;()[]{}')
+                              cfg_lower = cfg_clean.lower()
+                              if cfg_lower.startswith(HY2_PROTOCOLS):
+                                  raw_hy2_items.append(cfg_clean)
+                                  hy2_count += 1
+                              elif cfg_lower.startswith(VLESS_TROJAN_PROTOCOLS):
+                                  raw_vless_trojan_items.append(cfg_clean)
+                                  vless_trojan_count += 1
+
+                          print(f"✅ تلگرام (@{ch_name}): استخراج شد [Hy2: {hy2_count} | Vless/Trojan: {vless_trojan_count}]")
+                      else:
+                          print(f"⚠️ تلگرام (@{ch_name}): کد وضعیت ناموفق ({res.status_code})")
+                  except Exception as e:
+                      print(f"❌ خطا در کانال تلگرام (@{ch_name}) -> {e}")
+
+          # دریافت سورس‌های گیت‌هاب
+          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
           fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
+
+          # دریافت سورس‌های تلگرام
+          fetch_telegram_channels(TELEGRAM_CHANNELS)
 
           # تابع فیلتر امنیتی و یکتا‌سازی
           seen_keys = set()
@@ -139,10 +200,9 @@ jobs:
               for line in raw_list:
                   line_lower = line.lower()
                   
-                  # --- بخش اصلاح شده: فیلتر با ANY ---
+                  # فیلتر امنیتی
                   if any(pattern in line_lower for pattern in UNSAFE_PATTERNS):
                       continue
-                  # ----------------------------------
 
                   try:
                       parsed = urlparse(line)
