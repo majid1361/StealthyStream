@@ -46,29 +46,40 @@ jobs:
               "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
           ]
 
+          VT_PUBLIC_URLS = [
+              "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt",
+              "https://raw.githubusercontent.com/patterniha/Free-Configs/main/configs.txt",
+              "https://raw.githubusercontent.com/kasesm/Free-Config/refs/heads/main/all_raw.txt",
+              "https://raw.githubusercontent.com/Danialsamadi/v2go/main/AllConfigsSub.txt",
+              "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt"
+          ]
+
           TIMEOUT = 15
           HEADERS = {
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
           }
 
           raw_items = []
+          vt_raw_items = []
 
           print("📥 در حال دریافت کانفیگ‌ها از منابع جدید...")
-          # ۱. خواندن فایل کاستوم خودت (با دسترسی به همه پروتکل‌ها)
+          # ۱. خواندن فایل کاستوم خودت (با تفکیک پروتکل‌ها)
           if os.path.exists("custom.txt"):
               try:
                   with open("custom.txt", "r", encoding="utf-8") as f:
                       lines = f.read().replace('\r', '').split('\n')
                       for line in lines:
                           raw_items.append((line, True))
+                          vt_raw_items.append((line, True))
                   print("✅ موفق: custom.txt")
               except Exception as e:
                   print(f"❌ خطا در خواندن custom.txt -> {e}")
 
-          # ۲. خواندن سورس‌های عمومی (فقط هیستریا)
+          # ۲. خواندن سورس‌های عمومی هیستریا
           for url in PUBLIC_URLS:
               try:
-                  res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+                  clean_url = url.split('#')[0].strip()
+                  res = requests.get(clean_url, headers=HEADERS, timeout=TIMEOUT)
                   if res.status_code == 200:
                       lines = res.text.replace('\r', '').split('\n')
                       for line in lines:
@@ -79,13 +90,30 @@ jobs:
               except Exception as e:
                   print(f"❌ خطا در دانلود: {url} -> {e}")
 
+          # ۳. خواندن سورس‌های عمومی VLESS و Trojan
+          print("\n📥 در حال دریافت کانفیگ‌های VLESS و Trojan...")
+          for url in VT_PUBLIC_URLS:
+              try:
+                  clean_url = url.split('#')[0].strip()
+                  res = requests.get(clean_url, headers=HEADERS, timeout=TIMEOUT)
+                  if res.status_code == 200:
+                      lines = res.text.replace('\r', '').split('\n')
+                      for line in lines:
+                          vt_raw_items.append((line, False))
+                      print(f"✅ موفق: {url}")
+                  else:
+                      print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
+              except Exception as e:
+                  print(f"❌ خطا در دانلود: {url} -> {e}")
+
+          # ==================== پردازش لاین ۱: Hysteria ====================
           seen_keys = set()
           cleaned_configs = []
 
           PUBLIC_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
-          CUSTOM_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://", "vless://", "trojan://", "vmess://", "ss://", "tuic://")
+          CUSTOM_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
 
-          print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری...")
+          print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری Hysteria...")
           for line, is_custom in raw_items:
               line = line.strip()
               allowed = CUSTOM_PROTOCOLS if is_custom else PUBLIC_PROTOCOLS
@@ -98,11 +126,9 @@ jobs:
 
               try:
                   parsed = urlparse(line)
-                  # جدا کردن بخش کاربری از آدرس سرور
                   user_info = parsed.netloc.rsplit('@', 1)[0] if '@' in parsed.netloc else ''
                   netloc = parsed.netloc.split('@')[-1]
                   
-                  # مدیریت هاست و پورت (سازگار با پورت پیش‌فرض و Port Hopping)
                   if ':' in netloc:
                       host, port = netloc.split(':', 1)
                   else:
@@ -111,27 +137,66 @@ jobs:
                   host = host.lower().strip()
                   port = port.strip()
 
-                  # استخراج و نرمال‌سازی SNI
                   query_params = parse_qs(parsed.query)
                   sni = query_params.get('sni', [''])[0].lower().strip()
 
-                  # کلید یکتا: پروتکل + اطلاعات کاربری + آدرس + پورت + SNI
                   proto = parsed.scheme.lower()
                   unique_key = f"{proto}:{user_info}:{host}:{port}:{sni}"
 
                   if unique_key not in seen_keys:
                       seen_keys.add(unique_key)
-                      
-                      # پاکسازی تگ قبلی برای شماره‌گذاری تمیز
                       base_config = line.split('#')[0].strip()
                       cleaned_configs.append(base_config)
 
               except Exception:
                   continue
 
-          print(f"✨ تعداد کل کانفیگ‌های یکتای پیدا شده: {len(cleaned_configs)}")
+          print(f"✨ تعداد کل کانفیگ‌های یکتای هیستریا: {len(cleaned_configs)}")
 
-          # خواندن آخرین شماره از فایل counter.txt
+          # ==================== پردازش لاین ۲: VLESS / Trojan ====================
+          vt_seen_keys = set()
+          vt_cleaned_configs = []
+          VT_ALLOWED_PROTOCOLS = ("vless://", "trojan://")
+
+          print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری VLESS و Trojan...")
+          for line, is_custom in vt_raw_items:
+              line = line.strip()
+              if not line.startswith(VT_ALLOWED_PROTOCOLS): continue
+
+              line_lower = line.lower()
+              if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
+                  continue
+
+              try:
+                  parsed = urlparse(line)
+                  user_info = parsed.netloc.rsplit('@', 1)[0] if '@' in parsed.netloc else ''
+                  netloc = parsed.netloc.split('@')[-1]
+                  
+                  if ':' in netloc:
+                      host, port = netloc.split(':', 1)
+                  else:
+                      host, port = netloc, '443'
+                  
+                  host = host.lower().strip()
+                  port = port.strip()
+
+                  query_params = parse_qs(parsed.query)
+                  sni = query_params.get('sni', [''])[0].lower().strip()
+
+                  proto = parsed.scheme.lower()
+                  unique_key = f"{proto}:{user_info}:{host}:{port}:{sni}"
+
+                  if unique_key not in vt_seen_keys:
+                      vt_seen_keys.add(unique_key)
+                      base_config = line.split('#')[0].strip()
+                      vt_cleaned_configs.append(base_config)
+
+              except Exception:
+                  continue
+
+          print(f"✨ تعداد کل کانفیگ‌های یکتای VLESS/Trojan: {len(vt_cleaned_configs)}")
+
+          # ==================== شماره‌گذاری و ذخیره‌سازی ====================
           counter_file = "counter.txt"
           start_counter = 1
           if os.path.exists(counter_file):
@@ -143,31 +208,41 @@ jobs:
               except Exception:
                   pass
 
-          # شماره‌گذاری یکدست به فرمت اختصاصی
-          final_output = []
           current_num = start_counter
-          tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
 
+          # ۱. خروجی هیستریا
+          final_output = []
+          tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
           for cfg in cleaned_configs:
               final_output.append(f"{cfg}#{tag_prefix}{current_num}")
               current_num += 1
 
-          # ذخیره فایل خروجی کانفیگ‌ها
           with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(final_output) + ("\n" if final_output else ""))
 
-          # ذخیره آخرین شماره برای اجرای بعدی
-          last_saved_num = current_num - 1 if final_output else (start_counter - 1 if start_counter > 1 else 0)
+          # ۲. خروجی VLESS و Trojan
+          vt_final_output = []
+          vt_tag_prefix = quote("♾️ULTRA-TITAN-VT-")
+          for cfg in vt_cleaned_configs:
+              vt_final_output.append(f"{cfg}#{vt_tag_prefix}{current_num}")
+              current_num += 1
+
+          with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(vt_final_output) + ("\n" if vt_final_output else ""))
+
+          # ذخیره آخرین شماره شمارنده
+          last_saved_num = current_num - 1 if (final_output or vt_final_output) else (start_counter - 1 if start_counter > 1 else 0)
           with open(counter_file, "w", encoding="utf-8") as f:
               f.write(str(last_saved_num))
 
-          print(f"🎉 فایل hy2_filtered.txt با موفقیت ساخته شد.")
-          print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} انجام شد.")
+          print(f"\n🎉 فایل hy2_filtered.txt با موفقیت ساخته شد ({len(final_output)} کانفیگ).")
+          print(f"🎉 فایل vless_trojan_filtered.txt با موفقیت ساخته شد ({len(vt_final_output)} کانفیگ).")
+          print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} ذخیره شد.")
           EOF
 
       - name: Commit and Push Changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add hy2_filtered.txt counter.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update Hy2 configs [skip ci]" && git push)
+          git add hy2_filtered.txt vless_trojan_filtered.txt counter.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update Hy2 and VLESS/Trojan configs [skip ci]" && git push)
