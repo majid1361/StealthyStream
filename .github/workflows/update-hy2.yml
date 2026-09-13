@@ -31,6 +31,7 @@ jobs:
           python - << 'EOF'
           import os
           import re
+          import base64
           import requests
           from urllib.parse import urlparse, parse_qs, quote
 
@@ -80,18 +81,30 @@ jobs:
                               raw_hy2_items.append(line_clean)
                           elif line_clean.startswith(VLESS_TROJAN_PROTOCOLS):
                               raw_vless_trojan_items.append(line_clean)
-                  print("✅ موفق: custom.txt خوانده و با موفقیت تفکیک شد.")
+                  print("✅ موفق: custom.txt خوانده و تفکیک شد.")
               except Exception as e:
                   print(f"❌ خطا در خواندن custom.txt -> {e}")
 
-          # تابع کمکی برای دانلود ایمن و استخراج خطوط
+          # تابع کمکی برای دیکود خودکار Base64 در صورت لزوم
+          def decode_if_base64(text):
+              text_stripped = text.strip()
+              try:
+                  decoded = base64.b64decode(text_stripped).decode('utf-8', errors='ignore')
+                  if any(p in decoded for p in ("vless://", "trojan://", "hysteria2://", "hysteria://")):
+                      return decoded
+              except Exception:
+                  pass
+              return text
+
+          # تابع کمکی برای دانلود و پردازش ایمن
           def fetch_urls(urls, target_protocols, target_list, label):
               for raw_url in urls:
-                  url = raw_url.split('#')[0].strip() # حذف تر و تمیز تگ‌های احتمالی در انتهای URL
+                  url = raw_url.split('#')[0].strip()
                   try:
                       res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
                       if res.status_code == 200:
-                          lines = res.text.replace('\r', '').split('\n')
+                          content = decode_if_base64(res.text)
+                          lines = content.replace('\r', '').split('\n')
                           count = 0
                           for line in lines:
                               line_clean = line.strip()
@@ -104,18 +117,17 @@ jobs:
                   except Exception as e:
                       print(f"❌ خطا در دانلود ({label}): {url} -> {e}")
 
-          # ۱. دریافت هیستریا از سورس‌های پابلیک
+          # دریافت هیستریا
           fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
 
-          # ۲. دریافت Vless و Trojan از سورس‌های جدید
+          # دریافت Vless و Trojan
           fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
 
-          # تابع فیلتر امنیتی و یکتا‌سازی مهندسی‌شده (Deduplication)
+          # تابع فیلتر امنیتی و یکتا‌سازی
           seen_keys = set()
           def process_and_dedup(raw_list):
               cleaned = []
               for line in raw_list:
-                  # فیلتر کردن کانفیگ‌های ناامن (جلوگیری از MITM)
                   line_lower = line.lower()
                   if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
                       continue
@@ -147,14 +159,14 @@ jobs:
                       continue
               return cleaned
 
-          print("\n🔍 در حال فیلتر، اعتبارسنجی و حذف تکراری‌ها...")
+          print("\n🔍 در حال فیلتر، اعتبارسنجی و حذف موارد تکراری...")
           cleaned_hy2 = process_and_dedup(raw_hy2_items)
           cleaned_vless_trojan = process_and_dedup(raw_vless_trojan_items)
 
-          print(f"✨ تعداد هیستریا یکتا و سالم: {len(cleaned_hy2)}")
-          print(f"✨ تعداد ویلس و تروجان یکتا و سالم: {len(cleaned_vless_trojan)}")
+          print(f"✨ تعداد هیستریا یکتا: {len(cleaned_hy2)}")
+          print(f"✨ تعداد ویلس و تروجان یکتا: {len(cleaned_vless_trojan)}")
 
-          # مدیریت کانتر یکپارچه (Monotonic Sequence)
+          # مدیریت کانتر سراسری
           counter_file = "counter.txt"
           start_counter = 1
           if os.path.exists(counter_file):
@@ -175,29 +187,29 @@ jobs:
               final_hy2.append(f"{cfg}#{tag_prefix}{current_num}")
               current_num += 1
 
-          # ۲. شماره‌گذاری پیوسته Vless و Trojan (دقیقاً پشت سر هیستریا بدون پرش)
+          # ۲. شماره‌گذاری متوالی ویلس و تروجان
           final_vless_trojan = []
           for cfg in cleaned_vless_trojan:
               final_vless_trojan.append(f"{cfg}#{tag_prefix}{current_num}")
               current_num += 1
 
-          # ذخیره فایل‌های نهایی
+          # ذخیره فایل‌ها
           with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(final_hy2) + ("\n" if final_hy2 else ""))
 
           with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(final_vless_trojan) + ("\n" if final_vless_trojan else ""))
 
-          # ذخیره آخرین شماره ثبت‌شده در کانتر سراسری
+          # به‌روزرسانی کانتر
           total_configs = len(final_hy2) + len(final_vless_trojan)
           last_saved_num = current_num - 1 if total_configs > 0 else (start_counter - 1 if start_counter > 1 else 0)
 
           with open(counter_file, "w", encoding="utf-8") as f:
               f.write(str(last_saved_num))
 
-          print(f"\n🎉 فایل hy2_filtered.txt با {len(final_hy2)} کانفیگ آماده شد.")
-          print(f"🎉 فایل vless_trojan_filtered.txt با {len(final_vless_trojan)} کانفیگ آماده شد.")
-          print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} به شکل پیوسته ذخیره شد.")
+          print(f"\n🎉 فایل hy2_filtered.txt آماده شد ({len(final_hy2)} کانفیگ).")
+          print(f"🎉 فایل vless_trojan_filtered.txt آماده شد ({len(final_vless_trojan)} کانفیگ).")
+          print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} ثبت گردید.")
           EOF
 
       - name: Commit and Push Changes
