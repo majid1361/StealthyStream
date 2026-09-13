@@ -34,7 +34,8 @@ jobs:
           import requests
           from urllib.parse import urlparse, parse_qs, quote
 
-          PUBLIC_URLS = [
+          # ۱. سورس‌های عمومی هیستریا (Hysteria 1 & 2)
+          HY2_PUBLIC_URLS = [
               "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/all_extracted_configs.txt",
               "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2",
               "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/main/configs/proxy_configs.txt",
@@ -46,92 +47,114 @@ jobs:
               "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
           ]
 
+          # ۲. سورس‌های جدید اختصاصی VLESS و TROJAN
+          VLESS_TROJAN_PUBLIC_URLS = [
+              "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt",
+              "https://raw.githubusercontent.com/patterniha/Free-Configs/main/configs.txt",
+              "https://raw.githubusercontent.com/kasesm/Free-Config/refs/heads/main/all_raw.txt",
+              "https://raw.githubusercontent.com/Danialsamadi/v2go/main/AllConfigsSub.txt",
+              "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt"
+          ]
+
           TIMEOUT = 15
           HEADERS = {
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
           }
 
-          raw_items = []
+          HY2_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
+          VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
 
-          print("📥 در حال دریافت کانفیگ‌ها از منابع جدید...")
-          # ۱. خواندن فایل کاستوم خودت (با دسترسی به همه پروتکل‌ها)
+          raw_hy2_items = []
+          raw_vless_trojan_items = []
+
+          print("📥 در حال دریافت کانفیگ‌ها از منابع...")
+
+          # خواندن فایل کاستوم (تفکیک هوشمند ۲ زمانه)
           if os.path.exists("custom.txt"):
               try:
                   with open("custom.txt", "r", encoding="utf-8") as f:
                       lines = f.read().replace('\r', '').split('\n')
                       for line in lines:
-                          raw_items.append((line, True))
-                  print("✅ موفق: custom.txt")
+                          line_clean = line.strip()
+                          if line_clean.startswith(HY2_PROTOCOLS):
+                              raw_hy2_items.append(line_clean)
+                          elif line_clean.startswith(VLESS_TROJAN_PROTOCOLS):
+                              raw_vless_trojan_items.append(line_clean)
+                  print("✅ موفق: custom.txt خوانده و با موفقیت تفکیک شد.")
               except Exception as e:
                   print(f"❌ خطا در خواندن custom.txt -> {e}")
 
-          # ۲. خواندن سورس‌های عمومی (فقط هیستریا)
-          for url in PUBLIC_URLS:
-              try:
-                  res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-                  if res.status_code == 200:
-                      lines = res.text.replace('\r', '').split('\n')
-                      for line in lines:
-                          raw_items.append((line, False))
-                      print(f"✅ موفق: {url}")
-                  else:
-                      print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
-              except Exception as e:
-                  print(f"❌ خطا در دانلود: {url} -> {e}")
+          # تابع کمکی برای دانلود ایمن و استخراج خطوط
+          def fetch_urls(urls, target_protocols, target_list, label):
+              for raw_url in urls:
+                  url = raw_url.split('#')[0].strip() # حذف تر و تمیز تگ‌های احتمالی در انتهای URL
+                  try:
+                      res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+                      if res.status_code == 200:
+                          lines = res.text.replace('\r', '').split('\n')
+                          count = 0
+                          for line in lines:
+                              line_clean = line.strip()
+                              if line_clean.startswith(target_protocols):
+                                  target_list.append(line_clean)
+                                  count += 1
+                          print(f"✅ موفق ({label}): {url} [استخراج شد: {count}]")
+                      else:
+                          print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
+                  except Exception as e:
+                      print(f"❌ خطا در دانلود ({label}): {url} -> {e}")
 
+          # ۱. دریافت هیستریا از سورس‌های پابلیک
+          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
+
+          # ۲. دریافت Vless و Trojan از سورس‌های جدید
+          fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
+
+          # تابع فیلتر امنیتی و یکتا‌سازی مهندسی‌شده (Deduplication)
           seen_keys = set()
-          cleaned_configs = []
+          def process_and_dedup(raw_list):
+              cleaned = []
+              for line in raw_list:
+                  # فیلتر کردن کانفیگ‌های ناامن (جلوگیری از MITM)
+                  line_lower = line.lower()
+                  if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
+                      continue
 
-          PUBLIC_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
-          CUSTOM_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://", "vless://", "trojan://", "vmess://", "ss://", "tuic://")
+                  try:
+                      parsed = urlparse(line)
+                      user_info = parsed.netloc.rsplit('@', 1)[0] if '@' in parsed.netloc else ''
+                      netloc = parsed.netloc.split('@')[-1]
 
-          print("\n🔍 در حال بررسی، فیلتر و حذف موارد تکراری...")
-          for line, is_custom in raw_items:
-              line = line.strip()
-              allowed = CUSTOM_PROTOCOLS if is_custom else PUBLIC_PROTOCOLS
-              if not line.startswith(allowed): continue
+                      if ':' in netloc:
+                          host, port = netloc.split(':', 1)
+                      else:
+                          host, port = netloc, '443'
 
-              # فیلتر کردن کانفیگ‌های ناامن (حذف اخطارهای SSL و خطرات MITM)
-              line_lower = line.lower()
-              if "insecure=1" in line_lower or "allowinsecure=1" in line_lower or "allowinsecure=true" in line_lower:
-                  continue
+                      host = host.lower().strip()
+                      port = port.strip()
 
-              try:
-                  parsed = urlparse(line)
-                  # جدا کردن بخش کاربری از آدرس سرور
-                  user_info = parsed.netloc.rsplit('@', 1)[0] if '@' in parsed.netloc else ''
-                  netloc = parsed.netloc.split('@')[-1]
-                  
-                  # مدیریت هاست و پورت (سازگار با پورت پیش‌فرض و Port Hopping)
-                  if ':' in netloc:
-                      host, port = netloc.split(':', 1)
-                  else:
-                      host, port = netloc, '443'
-                  
-                  host = host.lower().strip()
-                  port = port.strip()
+                      query_params = parse_qs(parsed.query)
+                      sni = query_params.get('sni', [''])[0].lower().strip()
 
-                  # استخراج و نرمال‌سازی SNI
-                  query_params = parse_qs(parsed.query)
-                  sni = query_params.get('sni', [''])[0].lower().strip()
+                      proto = parsed.scheme.lower()
+                      unique_key = f"{proto}:{user_info}:{host}:{port}:{sni}"
 
-                  # کلید یکتا: پروتکل + اطلاعات کاربری + آدرس + پورت + SNI
-                  proto = parsed.scheme.lower()
-                  unique_key = f"{proto}:{user_info}:{host}:{port}:{sni}"
+                      if unique_key not in seen_keys:
+                          seen_keys.add(unique_key)
+                          base_config = line.split('#')[0].strip()
+                          cleaned.append(base_config)
+                  except Exception:
+                      continue
+              return cleaned
 
-                  if unique_key not in seen_keys:
-                      seen_keys.add(unique_key)
-                      
-                      # پاکسازی تگ قبلی برای شماره‌گذاری تمیز
-                      base_config = line.split('#')[0].strip()
-                      cleaned_configs.append(base_config)
+          print("\n🔍 در حال فیلتر، اعتبارسنجی و حذف تکراری‌ها...")
+          cleaned_hy2 = process_and_dedup(raw_hy2_items)
+          cleaned_vless_trojan = process_and_dedup(raw_vless_trojan_items)
 
-              except Exception:
-                  continue
+          print(f"✨ تعداد هیستریا یکتا و سالم: {len(cleaned_hy2)}")
+          print(f"✨ تعداد ویلس و تروجان یکتا و سالم: {len(cleaned_vless_trojan)}")
 
-          print(f"✨ تعداد کل کانفیگ‌های یکتای پیدا شده: {len(cleaned_configs)}")
-
-          # خواندن آخرین شماره از فایل counter.txt
+          # مدیریت کانتر یکپارچه (Monotonic Sequence)
           counter_file = "counter.txt"
           start_counter = 1
           if os.path.exists(counter_file):
@@ -143,31 +166,43 @@ jobs:
               except Exception:
                   pass
 
-          # شماره‌گذاری یکدست به فرمت اختصاصی
-          final_output = []
           current_num = start_counter
           tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
 
-          for cfg in cleaned_configs:
-              final_output.append(f"{cfg}#{tag_prefix}{current_num}")
+          # ۱. شماره‌گذاری هیستریا
+          final_hy2 = []
+          for cfg in cleaned_hy2:
+              final_hy2.append(f"{cfg}#{tag_prefix}{current_num}")
               current_num += 1
 
-          # ذخیره فایل خروجی کانفیگ‌ها
-          with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
-              f.write("\n".join(final_output) + ("\n" if final_output else ""))
+          # ۲. شماره‌گذاری پیوسته Vless و Trojan (دقیقاً پشت سر هیستریا بدون پرش)
+          final_vless_trojan = []
+          for cfg in cleaned_vless_trojan:
+              final_vless_trojan.append(f"{cfg}#{tag_prefix}{current_num}")
+              current_num += 1
 
-          # ذخیره آخرین شماره برای اجرای بعدی
-          last_saved_num = current_num - 1 if final_output else (start_counter - 1 if start_counter > 1 else 0)
+          # ذخیره فایل‌های نهایی
+          with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(final_hy2) + ("\n" if final_hy2 else ""))
+
+          with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(final_vless_trojan) + ("\n" if final_vless_trojan else ""))
+
+          # ذخیره آخرین شماره ثبت‌شده در کانتر سراسری
+          total_configs = len(final_hy2) + len(final_vless_trojan)
+          last_saved_num = current_num - 1 if total_configs > 0 else (start_counter - 1 if start_counter > 1 else 0)
+
           with open(counter_file, "w", encoding="utf-8") as f:
               f.write(str(last_saved_num))
 
-          print(f"🎉 فایل hy2_filtered.txt با موفقیت ساخته شد.")
-          print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} انجام شد.")
+          print(f"\n🎉 فایل hy2_filtered.txt با {len(final_hy2)} کانفیگ آماده شد.")
+          print(f"🎉 فایل vless_trojan_filtered.txt با {len(final_vless_trojan)} کانفیگ آماده شد.")
+          print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} به شکل پیوسته ذخیره شد.")
           EOF
 
       - name: Commit and Push Changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add hy2_filtered.txt counter.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update Hy2 configs [skip ci]" && git push)
+          git add hy2_filtered.txt vless_trojan_filtered.txt counter.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update Hy2 & Vless/Trojan configs [skip ci]" && git push)
