@@ -49,18 +49,20 @@ jobs:
               "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
           ]
 
-          # ۲. سورس‌های جدید اختصاصی VLESS و TROJAN
+          # ۲. سورس‌های اختصاصی VLESS و TROJAN
           VLESS_TROJAN_PUBLIC_URLS = [
               "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt",
+              "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/vless",
               "https://raw.githubusercontent.com/patterniha/Free-Configs/main/configs.txt",
               "https://raw.githubusercontent.com/kasesm/Free-Config/refs/heads/main/all_raw.txt",
               "https://raw.githubusercontent.com/Danialsamadi/v2go/main/AllConfigsSub.txt",
               "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt"
           ]
 
-          # ۳. کانال‌های عمومی تلگرام (دریافت زنده جدیدترین پست‌ها)
+          # ۳. کانال‌های عمومی تلگرام
           TELEGRAM_CHANNELS = [
-              "makvaslim",
+              "allproconf",
+              "SSRSUB",
               "proxy_kafee",
               "persianvpnhub",
               "v2ray_dalghak1",
