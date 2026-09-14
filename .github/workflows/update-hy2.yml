@@ -34,7 +34,7 @@ jobs:
           import html
           import base64
           import requests
-          from urllib.parse import urlparse, parse_qs, quote, unquote
+          from urllib.parse import urlparse, parse_qs, quote
 
           # ۱. سورس‌های عمومی هیستریا (Hysteria 1 & 2)
           HY2_PUBLIC_URLS = [
@@ -94,17 +94,6 @@ jobs:
               "skip-cert-verify=1", "skip-cert-verify=true", 
               "tlsinsecure=1", "tlsinsecure=true", "mitm"
           )
-
-          # لیست پارامترهای نامعتبر و اختصاصی Xray/v2rayNG
-          FORBIDDEN_QUERY_KEYS = {
-              "finalmask", "final_mask", "fragment", "mux", "dilay"
-          }
-
-          # فینگرپرینت‌های استاندارد مورد قبول Sing-box و Hiddify
-          VALID_FPS = {
-              "chrome", "firefox", "safari", "ios", "android",
-              "edge", "360", "qq", "random", "randomized"
-          }
 
           # ریجکس قدرتمند برای استخراج کانفیگ از متون و کپشن‌های تلگرام
           CONFIG_REGEX = re.compile(r'(?:vless|trojan|hysteria2|hysteria|hy2)://[^\s<>"\'`]+', re.IGNORECASE)
@@ -205,7 +194,7 @@ jobs:
           # دریافت سورس‌های تلگرام
           fetch_telegram_channels(TELEGRAM_CHANNELS)
 
-          # تابع فیلتر امنیتی، رد کانفیگ‌های جیسون‌دار و یکتا‌سازی
+          # تابع فیلتر امنیتی و یکتا‌سازی
           seen_keys = set()
           def process_and_dedup(raw_list):
               cleaned = []
@@ -214,11 +203,6 @@ jobs:
                   
                   # فیلتر امنیتی
                   if any(pattern in line_lower for pattern in UNSAFE_PATTERNS):
-                      continue
-
-                  # فیلتر کانفیگ‌های حاوی جیسون (Fragment / finalMask اینکود شده)
-                  decoded_line = unquote(line)
-                  if "{" in decoded_line and "}" in decoded_line:
                       continue
 
                   try:
@@ -234,18 +218,7 @@ jobs:
                       host = host.lower().strip()
                       port = port.strip()
 
-                      query_params = {k.lower(): v for k, v in parse_qs(parsed.query).items()}
-
-                      # فیلتر کلیدهای نامعتبر مثل finalMask و fragment
-                      if any(bad_k in query_params for bad_k in FORBIDDEN_QUERY_KEYS):
-                          continue
-
-                      # فیلتر فینگرپرینت‌های غیرمعتبر (مثل unsafe)
-                      if 'fp' in query_params:
-                          fp_val = query_params['fp'][0].lower().strip()
-                          if fp_val and fp_val not in VALID_FPS:
-                              continue
-
+                      query_params = parse_qs(parsed.query)
                       sni = query_params.get('sni', [''])[0].lower().strip()
 
                       proto = parsed.scheme.lower()
