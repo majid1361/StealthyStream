@@ -34,8 +34,6 @@ jobs:
           import html
           import base64
           import requests
-          import asyncio
-          import ssl
           from urllib.parse import urlparse, parse_qs, quote
 
           # ۱. سورس‌های عمومی هیستریا (Hysteria 1 & 2)
@@ -241,64 +239,6 @@ jobs:
 
           print(f"✨ تعداد هیستریا یکتا: {len(cleaned_hy2)}")
           print(f"✨ تعداد ویلس و تروجان یکتا: {len(cleaned_vless_trojan)}")
-
-          # ----------------------------------------------------
-          # 🚀 تست زنده بودن سرورها
-          # ----------------------------------------------------
-          async def is_server_alive(config_url, timeout=2.5):
-              try:
-                  parsed = urlparse(config_url)
-                  netloc = parsed.netloc.split('@')[-1]
-                  if ':' in netloc:
-                      host, port_str = netloc.split(':', 1)
-                      port = int(port_str)
-                  else:
-                      host = netloc
-                      port = 443
-
-                  if not host:
-                      return False
-
-                  query_params = parse_qs(parsed.query)
-                  sni = query_params.get('sni', [query_params.get('host', [host])])[0]
-                  security = query_params.get('security', [''])[0].lower()
-
-                  if security == 'tls' or port == 443:
-                      ssl_ctx = ssl.create_default_context()
-                      ssl_ctx.check_hostname = False
-                      ssl_ctx.verify_mode = ssl.CERT_NONE
-                      conn = asyncio.open_connection(host, port, ssl=ssl_ctx, server_hostname=sni)
-                  else:
-                      conn = asyncio.open_connection(host, port)
-
-                  reader, writer = await asyncio.wait_for(conn, timeout=timeout)
-                  writer.close()
-                  await writer.wait_closed()
-                  return True
-              except Exception:
-                  return False
-
-          async def filter_alive_batch(configs, max_concurrent=200):
-              semaphore = asyncio.Semaphore(max_concurrent)
-              alive_list = []
-
-              async def worker(cfg):
-                  async with semaphore:
-                      alive = await is_server_alive(cfg)
-                      if alive:
-                          alive_list.append(cfg)
-
-              tasks = [worker(cfg) for cfg in configs]
-              await asyncio.gather(*tasks)
-              return alive_list
-
-          print("\n⚡ در حال تست پینگ و غربالگری سرورهای خاموش/سوخته در گیت‌هاب...")
-          cleaned_hy2 = asyncio.run(filter_alive_batch(cleaned_hy2))
-          cleaned_vless_trojan = asyncio.run(filter_alive_batch(cleaned_vless_trojan))
-
-          print(f"🟢 هیستریا زنده و فعال: {len(cleaned_hy2)}")
-          print(f"🟢 ویلس/تروجان زنده و فعال: {len(cleaned_vless_trojan)}")
-          # ----------------------------------------------------
 
           # مدیریت کانتر سراسری
           counter_file = "counter.txt"
