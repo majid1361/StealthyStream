@@ -152,7 +152,7 @@ jobs:
 
           # تابع اختصاصی برای اسکرپ جدیدترین پست‌های کانال‌های تلگرامی
           def fetch_telegram_channels(channels):
-              print("\n📡 در حال اسکرپ کانال‌های تلگرامی...")
+              print("\n📡 در حال اسکرپ کانال‌های تلگرامی (فقط ۱۰ تای آخر)...")
               for ch in channels:
                   ch_name = ch.strip().replace("https://t.me/", "").replace("@", "").split("/")[0]
                   if not ch_name:
@@ -168,10 +168,14 @@ jobs:
                           
                           # استخراج همه کانفیگ‌ها از لابلای کپشن‌ها و توضیحات
                           found_configs = CONFIG_REGEX.findall(page_text)
+                          
+                          # 🔥 اعمال محدودیت به ۱۰ تای آخر پست‌ها
+                          latest_configs = found_configs[-10:] if len(found_configs) > 10 else found_configs
+                          
                           hy2_count = 0
                           vless_trojan_count = 0
 
-                          for cfg in found_configs:
+                          for cfg in latest_configs:
                               cfg_clean = cfg.strip().rstrip('.,;()[]{}')
                               cfg_lower = cfg_clean.lower()
                               if cfg_lower.startswith(HY2_PROTOCOLS):
@@ -187,9 +191,11 @@ jobs:
                   except Exception as e:
                       print(f"❌ خطا در کانال تلگرام (@{ch_name}) -> {e}")
 
-          # دریافت سورس‌های گیت‌هاب
-          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
-          fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
+          # -----------------------------------------------------------------
+          # سورس‌های گیت‌هاب موقتاً کامنت شدند تا فقط تلگرام تست شود
+          # -----------------------------------------------------------------
+          # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
+          # fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
 
           # دریافت سورس‌های تلگرام
           fetch_telegram_channels(TELEGRAM_CHANNELS)
