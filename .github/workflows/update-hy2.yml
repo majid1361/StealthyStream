@@ -170,7 +170,7 @@ jobs:
                           found_configs = CONFIG_REGEX.findall(page_text)
                           
                           # 🔥 اعمال محدودیت به ۱۰ تای آخر پست‌ها
-                          latest_configs = found_configs[-10:] if len(found_configs) > 10 else found_configs
+                          latest_configs = found_configs[-5:] if len(found_configs) > 10 else found_configs
                           
                           hy2_count = 0
                           vless_trojan_count = 0
