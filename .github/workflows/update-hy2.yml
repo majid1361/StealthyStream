@@ -73,7 +73,7 @@ jobs:
           TIMEOUT = 15
           # محدودیت برای هر سورس به‌صورت جداگانه
           # برای دریافت همه کانفیگ‌ها، خط زیر را کامنت کن
-          MAX_CONFIGS_PER_SOURCE = 10
+          MAX_CONFIGS_PER_SOURCE = 5
           HEADERS = {
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
           }
