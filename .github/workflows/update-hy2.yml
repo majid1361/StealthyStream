@@ -150,7 +150,7 @@ jobs:
                   except Exception as e:
                       print(f"❌ خطا در دانلود ({label}): {url} -> {e}")
 
-          # تابع اختصاصی برای اسکرپ جدیدترین پست‌های کانال‌های تلگرامی
+                  # تابع اختصاصی برای اسکرپ جدیدترین پست‌های کانال‌های تلگرامی (محدود به ۵ پست آخر)
           def fetch_telegram_channels(channels):
               print("\n📡 در حال اسکرپ کانال‌های تلگرامی...")
               for ch in channels:
@@ -161,12 +161,15 @@ jobs:
                   try:
                       res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
                       if res.status_code == 200:
-                          # پاکسازی ساختار HTML تلگرام و تبدیل به متن تمیز
-                          page_text = res.text
-                          page_text = re.sub(r'<br\s*/?>', '\n', page_text)
+                          # ۱. جدا کردن پیام‌های موجود در صفحه تلگرام (فقط ۵ پست آخر)
+                          messages = res.text.split('tgme_widget_message_wrap')
+                          recent_messages = "".join(messages[-5:])
+                          
+                          # ۲. پاکسازی ساختار HTML و تبدیل به متن تمیز
+                          page_text = re.sub(r'<br\s*/?>', '\n', recent_messages)
                           page_text = html.unescape(page_text)
                           
-                          # استخراج همه کانفیگ‌ها از لابلای کپشن‌ها و توضیحات
+                          # ۳. استخراج کانفیگ‌ها از ۵ پست اخیر
                           found_configs = CONFIG_REGEX.findall(page_text)
                           hy2_count = 0
                           vless_trojan_count = 0
@@ -181,7 +184,7 @@ jobs:
                                   raw_vless_trojan_items.append(cfg_clean)
                                   vless_trojan_count += 1
 
-                          print(f"✅ تلگرام (@{ch_name}): استخراج شد [Hy2: {hy2_count} | Vless/Trojan: {vless_trojan_count}]")
+                          print(f"✅ تلگرام (@{ch_name}): استخراج از ۵ پست اخیر [Hy2: {hy2_count} | Vless/Trojan: {vless_trojan_count}]")
                       else:
                           print(f"⚠️ تلگرام (@{ch_name}): کد وضعیت ناموفق ({res.status_code})")
                   except Exception as e:
