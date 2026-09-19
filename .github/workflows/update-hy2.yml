@@ -2,7 +2,7 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    # اجرا هر ۳ ساعت یک‌بار
+    # اجرا هر ۳ ساعت یک‌بار (ساعت 00:00, 06:00, 12:00, 18:00 به وقت UTC)
     - cron: '0 */3 * * *'
   workflow_dispatch: # امکان اجرای دستی با دکمه Run workflow
 
@@ -71,9 +71,6 @@ jobs:
           ]
 
           TIMEOUT = 15
-          # محدودیت برای هر سورس به‌صورت جداگانه
-          # برای دریافت همه کانفیگ‌ها، خط زیر را کامنت کن
-          MAX_CONFIGS_PER_SOURCE = 5
           HEADERS = {
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
           }
@@ -175,28 +172,9 @@ jobs:
                                   raw_vless_trojan_items.append(cfg_clean)
                                   vless_trojan_count += 1
 
-                      # استخراج و محدودسازی تلگرام
-                      found_configs = CONFIG_REGEX.findall(page_text)
-                      
-                      source_limit = globals().get("MAX_CONFIGS_PER_SOURCE")
-                      if source_limit is not None:
-                          found_configs = found_configs[-source_limit:]
-
-                      # حالا پردازش
-                      hy2_count = 0
-                      vless_trojan_count = 0
-                      for cfg in found_configs:
-                          cfg_clean = cfg.strip()
-                          cfg_lower = cfg_clean.lower()
-                          if cfg_lower.startswith(HY2_PROTOCOLS):
-                              raw_hy2_items.append(cfg_clean)
-                              hy2_count += 1
-                          elif cfg_lower.startswith(VLESS_TROJAN_PROTOCOLS):
-                              raw_vless_trojan_items.append(cfg_clean)
-                              vless_trojan_count += 1
-                      
-                      print(f"✅ تلگرام (@{ch_name}): استخراج شد [Hy2: {hy2_count} | Vless/Trojan: {vless_trojan_count}]")
-
+                          print(f"✅ تلگرام (@{ch_name}): استخراج شد [Hy2: {hy2_count} | Vless/Trojan: {vless_trojan_count}]")
+                      else:
+                          print(f"⚠️ تلگرام (@{ch_name}): کد وضعیت ناموفق ({res.status_code})")
                   except Exception as e:
                       print(f"❌ خطا در کانال تلگرام (@{ch_name}) -> {e}")
 
