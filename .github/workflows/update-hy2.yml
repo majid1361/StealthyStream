@@ -150,7 +150,7 @@ jobs:
                   except Exception as e:
                       print(f"❌ خطا در دانلود ({label}): {url} -> {e}")
 
-          # تابع اختصاصی برای اسکرپ جدیدترین پست‌های کانال‌های تلگرامی
+                  # تابع اختصاصی برای اسکرپ جدیدترین پست‌های کانال‌های تلگرامی (محدود به ۵ پست آخر)
           def fetch_telegram_channels(channels):
               print("\n📡 در حال اسکرپ کانال‌های تلگرامی...")
               for ch in channels:
@@ -161,10 +161,15 @@ jobs:
                   try:
                       res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
                       if res.status_code == 200:
+                          # ۱. جدا کردن پیام‌های موجود در صفحه تلگرام (فقط ۱۰ پست آخر)
                           messages = res.text.split('tgme_widget_message_wrap')
                           recent_messages = "".join(messages[-10:])
+                          
+                          # ۲. پاکسازی ساختار HTML و تبدیل به متن تمیز
                           page_text = re.sub(r'<br\s*/?>', '\n', recent_messages)
                           page_text = html.unescape(page_text)
+                          
+                          # ۳. استخراج کانفیگ‌ها از ۱۰ پست اخیر
                           found_configs = CONFIG_REGEX.findall(page_text)
                           hy2_count = 0
                           vless_trojan_count = 0
@@ -185,31 +190,20 @@ jobs:
                   except Exception as e:
                       print(f"❌ خطا در کانال تلگرام (@{ch_name}) -> {e}")
 
+          # دریافت سورس‌های گیت‌هاب
+          # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
+          # fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
+
           # دریافت سورس‌های تلگرام
           fetch_telegram_channels(TELEGRAM_CHANNELS)
-
-          # تابع فیلتر سازگاری با هیدیفای
-          def is_hiddify_compatible(link: str) -> bool:
-              link = link.strip()
-              allowed_protos = ("hysteria2://", "hy2://", "vless://", "trojan://", "hysteria://")
-              if not any(link.startswith(p) for p in allowed_protos):
-                  return False
-              if link.startswith(("vless://", "trojan://")):
-                  if "security=reality" in link or "security=tls" in link:
-                      if "sni=" not in link:
-                          return False
-              return True
 
           # تابع فیلتر امنیتی و یکتا‌سازی
           seen_keys = set()
           def process_and_dedup(raw_list):
               cleaned = []
               for line in raw_list:
-                  # فیلتر هیدیفای
-                  if not is_hiddify_compatible(line):
-                      continue
-                      
                   line_lower = line.lower()
+                  
                   # فیلتر امنیتی
                   if any(pattern in line_lower for pattern in UNSAFE_PATTERNS):
                       continue
