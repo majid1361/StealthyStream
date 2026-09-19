@@ -1,5 +1,12 @@
 name: StealthyStream Multi-Source Aggregator
 
+permissions:
+  contents: write
+
+concurrency:
+  group: stealthystream-aggregator
+  cancel-in-progress: false
+
 on:
   schedule:
     # اجرا هر ۶ ساعت یک‌بار (ساعت 00:00, 06:00, 12:00, 18:00 به وقت UTC)
@@ -9,6 +16,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout Repository
@@ -24,7 +32,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install requests dnspython
 
       - name: Fetch, Deduplicate and Normalize Configs
         run: |
@@ -32,11 +40,17 @@ jobs:
           import os
           import re
           import html
+          import time
           import base64
+          import ipaddress
+          import dns.exception
+          import dns.resolver
           import requests
-          from urllib.parse import urlparse, parse_qs, quote
+          from urllib.parse import urlparse, parse_qs, quote, unquote
 
-          # ۱. سورس‌های عمومی هیستریا (Hysteria 1 & 2)
+          # ============================================================
+          # ۱. سورس‌ها (دست‌نخورده — همان لیست‌های خودت)
+          # ============================================================
           HY2_PUBLIC_URLS = [
               "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/all_extracted_configs.txt",
               "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2",
@@ -49,7 +63,6 @@ jobs:
               "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
           ]
 
-          # ۲. سورس‌های اختصاصی VLESS و TROJAN
           VLESS_TROJAN_PUBLIC_URLS = [
               "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt",
               "https://raw.githubusercontent.com/patterniha/Free-Configs/main/configs.txt",
@@ -58,25 +71,12 @@ jobs:
               "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt"
           ]
 
-          # ۳. کانال‌های عمومی تلگرام
           TELEGRAM_CHANNELS = [
-              "allproconf",
-              "SSRSUB",
-              "proxy_kafee",
-              "persianvpnhub",
-              "v2ray_dalghak1",
-              "prrofile_purple",
-              "Hope_Net",
-              "FreakConfig",
-              "VpnProxy4free",
-              "V2ray_worlds",
-              "oneclickvpnkeys",
-              "free1_vpn",
-              "Outline_ir",
-              "Shh_Proxy",
-              "Filtershekan_channel",
-              "v2rayNG_Matsuri",
-              "VmessProtocol"
+              "allproconf", "SSRSUB", "proxy_kafee", "persianvpnhub",
+              "v2ray_dalghak1", "prrofile_purple", "Hope_Net", "FreakConfig",
+              "VpnProxy4free", "V2ray_worlds", "oneclickvpnkeys", "free1_vpn",
+              "Outline_ir", "Shh_Proxy", "Filtershekan_channel",
+              "v2rayNG_Matsuri", "VmessProtocol"
           ]
 
           TIMEOUT = 15
@@ -86,71 +86,209 @@ jobs:
 
           HY2_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
           VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
-          
-          # الگوهای ناامن
-          UNSAFE_PATTERNS = (
-              "insecure=1", "insecure=true", 
-              "allowinsecure=1", "allowinsecure=true", 
-              "skip-cert-verify=1", "skip-cert-verify=true", 
-              "tlsinsecure=1", "tlsinsecure=true", "mitm"
+          ALL_PROTOCOLS = HY2_PROTOCOLS + VLESS_TROJAN_PROTOCOLS
+
+          # ============================================================
+          # ۲. فیلترهای ناامن — دقیق و Query-based (به‌جای substring کور)
+          # ============================================================
+          UNSAFE_QUERY_KEYS = {
+              "insecure", "allowinsecure", "skip-cert-verify",
+              "skipcertverify", "tlsinsecure"
+          }
+          UNSAFE_TRUE_VALUES = {"1", "true", "yes", "on"}
+          UNSAFE_TEXT_PATTERNS = ("mitm",)
+
+          # ریجکس استخراج کانفیگ از متن و کپشن تلگرام
+          CONFIG_REGEX = re.compile(
+              r'(?:vless|trojan|hysteria2|hysteria|hy2)://[^\s<>"\'`]+',
+              re.IGNORECASE
           )
 
-          # ریجکس قدرتمند برای استخراج کانفیگ از متون و کپشن‌های تلگرام
-          CONFIG_REGEX = re.compile(r'(?:vless|trojan|hysteria2|hysteria|hy2)://[^\s<>"\'`]+', re.IGNORECASE)
-
+          # ============================================================
+          # ۳. ابزارهای عمومی
+          # ============================================================
           raw_hy2_items = []
           raw_vless_trojan_items = []
 
-          print("📥 در حال دریافت کانفیگ‌ها از منابع...")
+          def remove_bom(text):
+              return text.lstrip("\ufeff")
 
-          # خواندن فایل کاستوم (تفکیک هوشمند ۲ زمانه)
-          if os.path.exists("custom.txt"):
+          def repeatedly_unquote(value, rounds=3):
+              """برای کشف الگوهای URL-encoded تودرتو (fragment/finalMask)."""
+              result = html.unescape(str(value))
+              for _ in range(rounds):
+                  decoded = unquote(result)
+                  if decoded == result:
+                      break
+                  result = decoded
+              return result
+
+          def strip_display_name(config):
+              """فقط نام نمایشی بعد از # را حذف می‌کند (نه بخش‌های دیگر URI)."""
+              return config.split("#", 1)[0].strip()
+
+          def is_ip_address(host):
               try:
-                  with open("custom.txt", "r", encoding="utf-8") as f:
-                      lines = f.read().replace('\r', '').split('\n')
-                      for line in lines:
-                          line_clean = line.strip()
-                          if line_clean.startswith(HY2_PROTOCOLS):
-                              raw_hy2_items.append(line_clean)
-                          elif line_clean.startswith(VLESS_TROJAN_PROTOCOLS):
-                              raw_vless_trojan_items.append(line_clean)
-                  print("✅ موفق: custom.txt خوانده و تفکیک شد.")
+                  ipaddress.ip_address(host)
+                  return True
+              except ValueError:
+                  return False
+
+          def starts_with_protocol(value, protocols=ALL_PROTOCOLS):
+              # 🆕 فیکس باگ ۳: case-insensitive
+              return value.strip().lower().startswith(protocols)
+
+          def normalize_candidate(candidate):
+              """پاک‌سازی محافظه‌کارانه؛ بدون تغییر در بدنهٔ URI."""
+              if not isinstance(candidate, str):
+                  return ""
+              candidate = html.unescape(candidate)
+              candidate = remove_bom(candidate).strip()
+              # نویسه‌های چسبیده در HTML/کپشن
+              candidate = candidate.rstrip(".,;")
+              return candidate
+
+          def extract_host(config):
+              try:
+                  # 🆕 فیکس باگ ۱: IPv6-safe با hostname خود urlparse
+                  host = urlparse(config).hostname
+                  if not host:
+                      return None
+                  return host.strip().strip("[]").lower()
+              except Exception:
+                  return None
+
+          # ============================================================
+          # ۴. Base64 مقاوم — فیکس باگ ۲ (padding + URL-safe)
+          # ============================================================
+          BASE64_CHARSET = re.compile(r"^[A-Za-z0-9+/=_\-\r\n\t ]+$")
+
+          def decode_if_base64(text):
+              original = remove_bom(text).strip()
+              if not original:
+                  return original
+
+              # اگر URI مستقیم در متن هست، دست نمی‌زنیم
+              if any(p in original.lower() for p in ALL_PROTOCOLS):
+                  return original
+
+              compact = re.sub(r"\s+", "", original)
+              if len(compact) < 16 or not BASE64_CHARSET.fullmatch(compact):
+                  return original
+
+              padded = compact + ("=" * (-len(compact) % 4))  # 🆕 padding خودکار
+
+              for decoder in (base64.b64decode, base64.urlsafe_b64decode):  # 🆕 URL-safe
+                  try:
+                      decoded = decoder(padded).decode("utf-8", errors="strict")
+                      if any(p in decoded.lower() for p in ALL_PROTOCOLS):
+                          return decoded
+                  except Exception:
+                      continue
+              return original
+
+          # ============================================================
+          # ۵. فیلتر JSON/Fragment — هدفمند (finalMask / fragment+packets)
+          # ============================================================
+          def is_json_fragment_config(config):
+              decoded = repeatedly_unquote(config, rounds=4)
+              normalized = re.sub(r"\s+", "", decoded).lower()
+
+              if "finalmask" in normalized:
+                  return True
+
+              has_fragment = (
+                  '"fragment"' in normalized
+                  or "'fragment'" in normalized
+                  or "fragment=" in normalized
+              )
+              has_packets = (
+                  '"packets"' in normalized
+                  or "'packets'" in normalized
+                  or "packets=" in normalized
+              )
+              if has_fragment and has_packets:
+                  return True
+
+              # ساختارهای JSON رایج کلاینت‌ها
+              json_patterns = (
+                  '"type":"fragment"',
+                  "'type':'fragment'",
+                  '"fragment":{"packets"',
+                  '"protocol":"freedom","settings":{"fragment"',
+              )
+              return any(p in normalized for p in json_patterns)
+
+          # ============================================================
+          # ۶. فیلتر امنیتی دقیق (به‌جای substring کور)
+          # ============================================================
+          def contains_unsafe_options(config):
+              lowered = config.lower()
+              if any(p in lowered for p in UNSAFE_TEXT_PATTERNS):
+                  return True
+              try:
+                  parsed = urlparse(config)
+                  query = parse_qs(parsed.query, keep_blank_values=True)
+                  for key, values in query.items():
+                      if key.strip().lower() in UNSAFE_QUERY_KEYS:
+                          for value in values:
+                              if value.strip().lower() in UNSAFE_TRUE_VALUES:
+                                  return True
+              except Exception:
+                  return False  # خطای parse دلیل حذف نیست
+              return False
+
+          # ============================================================
+          # ۷. استخراج کانفیگ از متن (خطوط مستقیم + HTML)
+          # ============================================================
+          def extract_configs_from_text(text):
+              if not isinstance(text, str):
+                  return []
+              text = remove_bom(text)
+              text = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)
+              text = html.unescape(text)
+
+              results = []
+              # خطوط مستقیم
+              for raw_line in text.replace("\r", "").split("\n"):
+                  line = normalize_candidate(raw_line)
+                  if starts_with_protocol(line):
+                      results.append(line)
+              # لینک‌های لابلای HTML/کپشن
+              for match in CONFIG_REGEX.findall(text):
+                  candidate = normalize_candidate(match)
+                  if starts_with_protocol(candidate):
+                      results.append(candidate)
+              return results
+
+          def append_config(config, source_list):
+              config = normalize_candidate(config)
+              if not config:
+                  return False
+              lowered = config.lower()
+              if lowered.startswith(HY2_PROTOCOLS):
+                  raw_hy2_items.append(config)
+                  return True
+              if lowered.startswith(VLESS_TROJAN_PROTOCOLS):
+                  raw_vless_trojan_items.append(config)
+                  return True
+              return False
+
+          # ============================================================
+          # ۸. دریافت‌کننده‌ها
+          # ============================================================
+          def load_custom_file():
+              if not os.path.exists("custom.txt"):
+                  print("ℹ️ فایل custom.txt وجود ندارد.")
+                  return
+              try:
+                  with open("custom.txt", "r", encoding="utf-8-sig") as f:
+                      configs = extract_configs_from_text(f.read())
+                  added = sum(1 for c in configs if append_config(c, None))
+                  print(f"✅ موفق: custom.txt خوانده و تفکیک شد [{added} کانفیگ].")
               except Exception as e:
                   print(f"❌ خطا در خواندن custom.txt -> {e}")
 
-          # تابع کمکی برای دیکود خودکار Base64 در صورت لزوم
-          def decode_if_base64(text):
-              text_stripped = text.strip()
-              try:
-                  decoded = base64.b64decode(text_stripped).decode('utf-8', errors='ignore')
-                  if any(p in decoded for p in ("vless://", "trojan://", "hysteria2://", "hysteria://", "hy2://")):
-                      return decoded
-              except Exception:
-                  pass
-              return text
-
-          # تابع کمکی برای دانلود و پردازش ایمن سورس‌های گیت‌هاب/وب
-          def fetch_urls(urls, target_protocols, target_list, label):
-              for raw_url in urls:
-                  url = raw_url.split('#')[0].strip()
-                  try:
-                      res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-                      if res.status_code == 200:
-                          content = decode_if_base64(res.text)
-                          lines = content.replace('\r', '').split('\n')
-                          count = 0
-                          for line in lines:
-                              line_clean = line.strip()
-                              if line_clean.startswith(target_protocols):
-                                  target_list.append(line_clean)
-                                  count += 1
-                          print(f"✅ موفق ({label}): {url} [استخراج شد: {count}]")
-                      else:
-                          print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
-                  except Exception as e:
-                      print(f"❌ خطا در دانلود ({label}): {url} -> {e}")
-
-          # تابع اختصاصی برای اسکرپ جدیدترین پست‌های کانال‌های تلگرامی
           def fetch_telegram_channels(channels):
               print("\n📡 در حال اسکرپ کانال‌های تلگرامی...")
               for ch in channels:
@@ -161,88 +299,283 @@ jobs:
                   try:
                       res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
                       if res.status_code == 200:
-                          # پاکسازی ساختار HTML تلگرام و تبدیل به متن تمیز
-                          page_text = res.text
-                          page_text = re.sub(r'<br\s*/?>', '\n', page_text)
-                          page_text = html.unescape(page_text)
-                          
-                          # استخراج همه کانفیگ‌ها از لابلای کپشن‌ها و توضیحات
-                          found_configs = CONFIG_REGEX.findall(page_text)
-                          hy2_count = 0
-                          vless_trojan_count = 0
-
-                          for cfg in found_configs:
-                              cfg_clean = cfg.strip().rstrip('.,;()[]{}')
-                              cfg_lower = cfg_clean.lower()
-                              if cfg_lower.startswith(HY2_PROTOCOLS):
-                                  raw_hy2_items.append(cfg_clean)
+                          found = extract_configs_from_text(res.text)
+                          hy2_count = vless_count = 0
+                          for cfg in found:
+                              lowered = cfg.lower()
+                              if lowered.startswith(HY2_PROTOCOLS):
+                                  raw_hy2_items.append(cfg)
                                   hy2_count += 1
-                              elif cfg_lower.startswith(VLESS_TROJAN_PROTOCOLS):
-                                  raw_vless_trojan_items.append(cfg_clean)
-                                  vless_trojan_count += 1
-
-                          print(f"✅ تلگرام (@{ch_name}): استخراج شد [Hy2: {hy2_count} | Vless/Trojan: {vless_trojan_count}]")
+                              elif lowered.startswith(VLESS_TROJAN_PROTOCOLS):
+                                  raw_vless_trojan_items.append(cfg)
+                                  vless_count += 1
+                          print(f"✅ تلگرام (@{ch_name}): [Hy2: {hy2_count} | Vless/Trojan: {vless_count}]")
                       else:
                           print(f"⚠️ تلگرام (@{ch_name}): کد وضعیت ناموفق ({res.status_code})")
                   except Exception as e:
                       print(f"❌ خطا در کانال تلگرام (@{ch_name}) -> {e}")
 
-          # دریافت سورس‌های گیت‌هاب
-          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
-          fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
+          def fetch_urls(urls, accepted_protocols, label):
+              for raw_url in urls:
+                  url = raw_url.split('#')[0].strip()
+                  try:
+                      res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+                      if res.status_code == 200:
+                          content = decode_if_base64(res.text)
+                          configs = [
+                              c for c in extract_configs_from_text(content)
+                              if c.lower().startswith(accepted_protocols)
+                          ]
+                          added = sum(1 for c in configs if append_config(c, None))
+                          print(f"✅ موفق ({label}): {url} [استخراج شد: {added}]")
+                      else:
+                          print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
+                  except Exception as e:
+                      print(f"❌ خطا در دانلود ({label}): {url} -> {e}")
 
-          # دریافت سورس‌های تلگرام
-          fetch_telegram_channels(TELEGRAM_CHANNELS)
+          # ============================================================
+          # ۹. Dedup دقیق — فیکس باگ ۴ (کلید کامل با پارامترهای Transport)
+          # ============================================================
+          IMPORTANT_QUERY_KEYS = {
+              "type", "security", "path", "servicename", "service_name",
+              "host", "sni", "pbk", "sid", "fp", "encryption",
+              "headertype", "alpn", "flow", "mode", "authority",
+              "obfs", "obfs-password"
+          }
+          CASE_INSENSITIVE_KEYS = {
+              "type", "security", "sni", "host", "fp", "alpn",
+              "encryption", "headertype", "flow", "mode"
+          }
 
-          # تابع فیلتر امنیتی و یکتا‌سازی
-          seen_keys = set()
-          def process_and_dedup(raw_list):
-              cleaned = []
-              for line in raw_list:
-                  line_lower = line.lower()
-                  
-                  # فیلتر امنیتی
-                  if any(pattern in line_lower for pattern in UNSAFE_PATTERNS):
+          def canonical_query(query):
+              parsed_query = parse_qs(query, keep_blank_values=True)
+              items = []
+              for raw_key, values in parsed_query.items():
+                  key = raw_key.strip().lower()
+                  if key not in IMPORTANT_QUERY_KEYS:
                       continue
+                  norm_values = []
+                  for value in values:
+                      value = unquote(value).strip()
+                      if key in CASE_INSENSITIVE_KEYS:
+                          value = value.lower()
+                      norm_values.append(value)
+                  norm_values.sort()
+                  items.append((key, tuple(norm_values)))
+              items.sort(key=lambda item: item[0])
+              return tuple(items)
+
+          def build_dedup_key(config):
+              """None یعنی قابل parse نیست → با کلید متنی نگه داشته می‌شود (حذف نمی‌شود)."""
+              try:
+                  base = strip_display_name(config)
+                  parsed = urlparse(base)
+                  scheme = parsed.scheme.lower()
+
+                  host = parsed.hostname
+                  if not host:
+                      return None
+                  host = host.strip().strip("[]").lower()
 
                   try:
-                      parsed = urlparse(line)
-                      user_info = parsed.netloc.rsplit('@', 1)[0] if '@' in parsed.netloc else ''
-                      netloc = parsed.netloc.split('@')[-1]
+                      port = parsed.port
+                  except ValueError:
+                      return None
+                  if port is None:
+                      port = 443
+                  if not (1 <= port <= 65535):
+                      return None
 
-                      if ':' in netloc:
-                          host, port = netloc.split(':', 1)
-                      else:
-                          host, port = netloc, '443'
+                  # user-info خام می‌ماند (UUID/پسورد case-sensitive است)
+                  user_info = parsed.netloc.rsplit("@", 1)[0] if "@" in parsed.netloc else ""
 
-                      host = host.lower().strip()
-                      port = port.strip()
+                  return (scheme, user_info, host, port, canonical_query(parsed.query))
+              except Exception:
+                  return None
 
-                      query_params = parse_qs(parsed.query)
-                      sni = query_params.get('sni', [''])[0].lower().strip()
+          def process_and_dedup(raw_fallback = set()
 
-                      proto = parsed.scheme.lower()
-                      unique_key = f"{proto}:{user_info}:{host}:{port}:{sni}"
+ cleaned = []
+              seen_structured = set()
+              seen_fallback = set()
 
-                      if unique_key not in seen_keys:
-                          seen_keys.add(unique_key)
-                          base_config = line.split('#')[0].strip()
-                          cleaned.append(base_config)
-                  except Exception:
+              unsafe_removed = fragment_removed = dup_removed = invalid_removed = fallback_kept = 0
+
+              for line in raw_list:
+                  config = normalize_candidate(line)
+                  if not config or not starts_with_protocol(config):
+                      invalid_removed += 1
                       continue
+
+                  # 🆕 فیلتر JSON/Fragment (مثل کانفیگ‌های اسکرین‌شاتت)
+                  if is_json_fragment_config(config):
+                      fragment_removed += 1
+                      continue
+
+                  # فیلتر امنیتی دقیق
+                  if contains_unsafe_options(config):
+                      unsafe_removed += 1
+                      continue
+
+                  base = strip_display_name(config)
+                  if not base:
+                      invalid_removed += 1
+                      continue
+
+                  key = build_dedup_key(base)
+                  if key is None:
+                      # 🆕 فیکس باگ ۸: خطای parse → حذف نمی‌شود، Dedup متنی
+                      if base in seen_fallback:
+                          dup_removed += 1
+                      else:
+                          seen_fallback.add(base)
+                          cleaned.append(base)
+                          fallback_kept += 1
+                      continue
+
+                  if key in seen_structured:
+                      dup_removed += 1
+                      continue
+
+                  seen_structured.add(key)
+                  cleaned.append(base)
+
+              print(f"\n🧹 نتیجه پردازش {label}:")
+              print(f"   ورودی: {len(raw_list)}")
+              print(f"   یکتا و نگهداری‌شده: {len(cleaned)}")
+              print(f"   تکراری حذف‌شده: {dup_removed}")
+              print(f"   Unsafe حذف‌شده: {unsafe_removed}")
+              print(f"   JSON/Fragment حذف‌شده: {fragment_removed}")
+              print(f"   نامعتبر حذف‌شده: {invalid_removed}")
+              print(f"   Parse نامشخص ولی نگهداری‌شده: {fallback_kept}")
               return cleaned
 
+          # ============================================================
+          # ۱۰. Health Check محافظه‌کارانه — فقط NXDOMAIN قطعی
+          #     ❌ بدون TCP Ping (Hysteria روی UDP/QUIC است!)
+          #     ❌ بدون UDP Ping (UDP اتصال ندارد و جواب قطعی نمی‌دهد)
+          #     ✅ فقط وقتی هر ۳ Resolver مستقل صریحاً NXDOMAIN بدهند حذف می‌شود
+          # ============================================================
+          DNS_RESOLVERS = ("1.1.1.1", "8.8.8.8", "9.9.9.9")
+          DNS_CACHE = {}
+
+          def query_resolver(host, nameserver):
+              """EXISTS / NXDOMAIN / UNKNOWN"""
+              resolver = dns.resolver.Resolver(configure=False)
+              resolver.nameservers = [nameserver]
+              resolver.timeout = 2.5
+              resolver.lifetime = 4.0
+              try:
+                  resolver.resolve(host, "A", raise_on_no_answer=False)
+                  return "EXISTS"
+              except dns.resolver.NXDOMAIN:
+                  # شاید فقط IPv6 داشته باشد
+                  try:
+                      resolver.resolve(host, "AAAA", raise_on_no_answer=False)
+                      return "EXISTS"
+                  except dns.resolver.NXDOMAIN:
+                      return "NXDOMAIN"
+                  except (dns.resolver.NoAnswer, dns.exception.DNSException):
+                      # NoAnswer یعنی دامنه وجود دارد
+                      return "EXISTS" if isinstance(sys_last_exception(), dns.resolver.NoAnswer) else "UNKNOWN"
+              except dns.resolver.NoAnswer:
+                  return "EXISTS"
+              except dns.exception.DNSException:
+                  return "UNKNOWN"
+              except Exception:
+                  return "UNKNOWN"
+
+          def sys_last_exception():
+              return None  # placeholder ساده — در مسیر AAAA به NoAnswer نمی‌رسیم چون NXDOMAIN جدا هندل شده
+
+          def get_domain_health(host):
+              """ALIVE / DEAD / UNKNOWN — فقط ۳ NXDOMAIN مستقل = DEAD"""
+              host = host.strip().strip("[]").lower()
+              if not host:
+                  return "UNKNOWN"
+              if is_ip_address(host):
+                  return "ALIVE"  # 🆕 IPها اصلاً DNS چک نمی‌شوند
+              if host in DNS_CACHE:
+                  return DNS_CACHE[host]
+
+              results = []
+              for ns in DNS_RESOLVERS:
+                  result = query_resolver(host, ns)
+                  results.append(result)
+                  if result == "EXISTS":
+                      DNS_CACHE[host] = "ALIVE"
+                      return "ALIVE"
+
+              if all(r == "NXDOMAIN" for r in results):
+                  DNS_CACHE[host] = "DEAD"
+                  return "DEAD"
+
+              DNS_CACHE[host] = "UNKNOWN"
+              return "UNKNOWN"
+
+          def filter_definitely_dead_domains(configs, label):
+              kept = []
+              alive = ip_kept = unknown = dead_removed = 0
+
+              for index, config in enumerate(configs, start=1):
+                  host = extract_host(config)
+                  if not host:
+                      kept.append(config)
+                      unknown += 1
+                      continue
+
+                  if is_ip_address(host):
+                      kept.append(config)
+                      ip_kept += 1
+                      continue
+
+                  status = get_domain_health(host)
+                  if status == "DEAD":
+                      dead_removed += 1
+                      print(f"   🗑️ NXDOMAIN قطعی: {host}")
+                  else:
+                      kept.append(config)
+                      if status == "ALIVE":
+                          alive += 1
+                      else:
+                          unknown += 1
+
+                  if index % 100 == 0:
+                      print(f"   DNS progress ({label}): {index}/{len(configs)}")
+
+              print(f"\n🌐 نتیجه DNS ({label}):")
+              print(f"   دامنه زنده: {alive} | IP بدون چک: {ip_kept}")
+              print(f"   نامشخص و نگهداری‌شده: {unknown}")
+              print(f"   NXDOMAIN قطعی حذف‌شده: {dead_removed}")
+              print(f"   خروجی: {len(kept)}")
+              return kept
+
+          # ============================================================
+          # ۱۱. اجرای اصلی — ترتیب جدید: custom ← تلگرام ← گیت‌هاب (فیکس باگ ۵)
+          # ============================================================
+          print("📥 در حال دریافت کانفیگ‌ها از منابع...")
+
+          load_custom_file()
+          fetch_telegram_channels(TELEGRAM_CHANNELS)
+          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, "Hy2")
+          fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, "Vless/Trojan")
+
           print("\n🔍 در حال فیلتر، اعتبارسنجی و حذف موارد تکراری...")
-          cleaned_hy2 = process_and_dedup(raw_hy2_items)
-          cleaned_vless_trojan = process_and_dedup(raw_vless_trojan_items)
+          cleaned_hy2 = process_and_dedup(raw_hy2_items, "Hysteria/Hysteria2")
+          cleaned_vless_trojan = process_and_dedup(raw_vless_trojan_items, "Vless/Trojan")
 
           print(f"✨ تعداد هیستریا یکتا: {len(cleaned_hy2)}")
           print(f"✨ تعداد ویلس و تروجان یکتا: {len(cleaned_vless_trojan)}")
 
-          # مدیریت کانتر سراسری
+          print("\n🩺 بررسی محافظه‌کارانه DNS (بدون TCP/UDP Ping)...")
+          cleaned_hy2 = filter_definitely_dead_domains(cleaned_hy2, "Hy2")
+          cleaned_vless_trojan = filter_definitely_dead_domains(cleaned_vless_trojan, "Vless/Trojan")
+
+          # ============================================================
+          # ۱۲. کانتر و خروجی (منطق خودت — دست‌نخورده + گارد کانتر)
+          # ============================================================
           counter_file = "counter.txt"
-          start_counter = 1
-          if os.path.exists(counter_file):
+         (counter_file, "r", encoding=" os.path.exists(counter_file):
               try:
                   with open(counter_file, "r", encoding="utf-8") as f:
                       content = f.read().strip()
@@ -254,26 +587,23 @@ jobs:
           current_num = start_counter
           tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
 
-          # ۱. شماره‌گذاری هیستریا
           final_hy2 = []
           for cfg in cleaned_hy2:
               final_hy2.append(f"{cfg}#{tag_prefix}{current_num}")
               current_num += 1
 
-          # ۲. شماره‌گذاری متوالی ویلس و تروجان
           final_vless_trojan = []
           for cfg in cleaned_vless_trojan:
               final_vless_trojan.append(f"{cfg}#{tag_prefix}{current_num}")
               current_num += 1
 
-          # ذخیره فایل‌ها
           with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(final_hy2) + ("\n" if final_hy2 else ""))
 
           with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(final_vless_trojan) + ("\n" if final_vless_trojan else ""))
 
-          # به‌روزرسانی کانتر
+          # 🆕 فیکس باگ ۱۱: در اجرای خالی، کانتر قبلی حفظ می‌شود
           total_configs = len(final_hy2) + len(final_vless_trojan)
           last_saved_num = current_num - 1 if total_configs > 0 else (start_counter - 1 if start_counter > 1 else 0)
 
@@ -284,6 +614,15 @@ jobs:
           print(f"🎉 فایل vless_trojan_filtered.txt آماده شد ({len(final_vless_trojan)} کانفیگ).")
           print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} ثبت گردید.")
           EOF
+
+      - name: Validate Generated Files
+        run: |
+          test -f hy2_filtered.txt
+          test -f vless_trojan_filtered.txt
+          test -f counter.txt
+          grep -Eq '^[0-9]+$' counter.txt || { echo "❌ counter.txt نامعتبر است"; exit 1; }
+          echo "✅ فایل‌های خروجی سالم هستند."
+          echo "Hy2: $(wc -l < hy2_filtered.txt) خط | Vless/Trojan: $(wc -l < vless_trojan_filtered.txt) خط | Counter: $(cat counter.txt)"
 
       - name: Commit and Push Changes
         run: |
