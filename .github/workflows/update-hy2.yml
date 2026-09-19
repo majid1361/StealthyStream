@@ -2,8 +2,8 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    # اجرا هر ۶ ساعت یک‌بار (ساعت 00:00, 06:00, 12:00, 18:00 به وقت UTC)
-    - cron: '0 */6 * * *'
+    # اجرا هر ۳ ساعت یک‌بار (ساعت 00:00, 06:00, 12:00, 18:00 به وقت UTC)
+    - cron: '0 */3 * * *'
   workflow_dispatch: # امکان اجرای دستی با دکمه Run workflow
 
 jobs:
@@ -163,7 +163,7 @@ jobs:
                       if res.status_code == 200:
                           # ۱. جدا کردن پیام‌های موجود در صفحه تلگرام (فقط ۵ پست آخر)
                           messages = res.text.split('tgme_widget_message_wrap')
-                          recent_messages = "".join(messages[-5:])
+                          recent_messages = "".join(messages[-10:])
                           
                           # ۲. پاکسازی ساختار HTML و تبدیل به متن تمیز
                           page_text = re.sub(r'<br\s*/?>', '\n', recent_messages)
@@ -184,7 +184,7 @@ jobs:
                                   raw_vless_trojan_items.append(cfg_clean)
                                   vless_trojan_count += 1
 
-                          print(f"✅ تلگرام (@{ch_name}): استخراج از ۵ پست اخیر [Hy2: {hy2_count} | Vless/Trojan: {vless_trojan_count}]")
+                          print(f"✅ تلگرام (@{ch_name}): استخراج از ۱۰ پست اخیر [Hy2: {hy2_count} | Vless/Trojan: {vless_trojan_count}]")
                       else:
                           print(f"⚠️ تلگرام (@{ch_name}): کد وضعیت ناموفق ({res.status_code})")
                   except Exception as e:
