@@ -2,8 +2,8 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    # اجرا هر ۶ ساعت یک‌بار (ساعت 00:00, 06:00, 12:00, 18:00 به وقت UTC)
-    - cron: '0 */6 * * *'
+    # اجرا هر ۳ ساعت یک‌بار
+    - cron: '0 */3 * * *'
   workflow_dispatch: # امکان اجرای دستی با دکمه Run workflow
 
 jobs:
@@ -62,22 +62,12 @@ jobs:
           # ۳. کانال‌های عمومی تلگرام
           TELEGRAM_CHANNELS = [
               "allproconf",
-              "SSRSUB",
-              "proxy_kafee",
               "persianvpnhub",
-              "v2ray_dalghak1",
               "prrofile_purple",
-              "Hope_Net",
               "FreakConfig",
-              "VpnProxy4free",
-              "V2ray_worlds",
               "oneclickvpnkeys",
               "free1_vpn",
-              "Outline_ir",
-              "Shh_Proxy",
-              "Filtershekan_channel",
-              "v2rayNG_Matsuri",
-              "VmessProtocol"
+              "Outline_ir"
           ]
 
           TIMEOUT = 15
