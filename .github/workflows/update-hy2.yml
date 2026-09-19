@@ -161,9 +161,9 @@ jobs:
                   try:
                       res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
                       if res.status_code == 200:
-                          # ۱. جدا کردن پیام‌های موجود در صفحه تلگرام (فقط ۵ پست آخر)
+                          # ۱. جدا کردن پیام‌های موجود در صفحه تلگرام (فقط ۲ پست آخر)
                           messages = res.text.split('tgme_widget_message_wrap')
-                          recent_messages = "".join(messages[-10:])
+                          recent_messages = "".join(messages[-2:])
                           
                           # ۲. پاکسازی ساختار HTML و تبدیل به متن تمیز
                           page_text = re.sub(r'<br\s*/?>', '\n', recent_messages)
