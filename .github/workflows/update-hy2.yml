@@ -61,12 +61,21 @@ jobs:
 
           # ۳. کانال‌های عمومی تلگرام
           TELEGRAM_CHANNELS = [
-              "allproconf",
-              "persianvpnhub",
               "prrofile_purple",
-              "FreakConfig",
+              "persianvpnhub",
+              "allproconf",
               "oneclickvpnkeys",
+              "v2ray_dalghak1",
+              "proxy_kafee",
+              "FreakConfig",
+              "VmessProtocol",
+              "v2rayNG_Matsuri",
+              "VpnProxy4free",
+              "PrivateVPNs",
               "free1_vpn",
+              "V2ray_worlds",
+              "Shh_Proxy",
+              "Hope_Net",
               "Outline_ir"
           ]
 
