@@ -131,7 +131,7 @@ jobs:
                       res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
                       if res.status_code == 200:
                           content = decode_if_base64(res.text)
-                          lines = content.replace('\r', '').split('\n')
+                          lines = content.replace('\r', '').split('\n')[:10]
                           count = 0
                           for line in lines:
                               line_clean = line.strip()
@@ -182,8 +182,8 @@ jobs:
                       print(f"❌ خطا در کانال تلگرام (@{ch_name}) -> {e}")
 
           # دریافت سورس‌های گیت‌هاب
-          # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
-          # fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
+          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
+          fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
 
           # دریافت سورس‌های تلگرام
           fetch_telegram_channels(TELEGRAM_CHANNELS)
