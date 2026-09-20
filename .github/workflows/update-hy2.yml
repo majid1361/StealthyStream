@@ -83,7 +83,8 @@ jobs:
               "insecure=1", "insecure=true", 
               "allowinsecure=1", "allowinsecure=true", 
               "skip-cert-verify=1", "skip-cert-verify=true", 
-              "tlsinsecure=1", "tlsinsecure=true", "mitm"
+              "tlsinsecure=1", "tlsinsecure=true", "mitm",
+              "finalmask", "fragment"
           )
 
           # ریجکس قدرتمند برای استخراج کانفیگ از متون و کپشن‌های تلگرام
