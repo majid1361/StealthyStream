@@ -78,15 +78,15 @@ jobs:
           HY2_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
           VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
           
-          # الگوهای ناامن
+          # الگوهای ناامن و ناسازگار
           UNSAFE_PATTERNS = (
               "insecure=1", "insecure=true", 
               "allowinsecure=1", "allowinsecure=true", 
               "skip-cert-verify=1", "skip-cert-verify=true", 
               "tlsinsecure=1", "tlsinsecure=true", "mitm",
-              "type=xhttp", "type=splithttp", "type=kcp",
-              "ech=", "ech",
-              "finalmask", "fragment"
+              "type=xhttp", "type=splithttp", "type=kcp", "type=quic",
+              "ech=", "finalmask", "fragment",
+              "@127.0.0.1:", "@localhost:", "@0.0.0.0:"
           )
 
           # ریجکس قدرتمند برای استخراج کانفیگ از متون و کپشن‌های تلگرام
