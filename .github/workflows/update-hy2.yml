@@ -3,7 +3,7 @@ name: StealthyStream Multi-Source Aggregator
 on:
   schedule:
     # اجرا هر ۳ ساعت یک‌بار
-    - cron: '0 */3 * * *'
+    - cron: '12 */3 * * *'
   workflow_dispatch: # امکان اجرای دستی با دکمه Run workflow
 
 jobs:
@@ -170,7 +170,7 @@ jobs:
                           page_text = html.unescape(page_text)
                           
                           # استخراج همه کانفیگ‌ها از لابلای کپشن‌ها و توضیحات
-                          found_configs = CONFIG_REGEX.findall(page_text)[-20:]
+                          found_configs = CONFIG_REGEX.findall(page_text)[-100:]
                           hy2_count = 0
                           vless_trojan_count = 0
 
