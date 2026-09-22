@@ -140,7 +140,7 @@ jobs:
                       res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
                       if res.status_code == 200:
                           content = decode_if_base64(res.text)
-                          lines = content.replace('\r', '').split('\n')[:50]
+                          lines = content.replace('\r', '').split('\n')[:100]
                           count = 0
                           for line in lines:
                               line_clean = line.strip()
@@ -170,7 +170,7 @@ jobs:
                           page_text = html.unescape(page_text)
                           
                           # استخراج همه کانفیگ‌ها از لابلای کپشن‌ها و توضیحات
-                          found_configs = CONFIG_REGEX.findall(page_text)[-50:]
+                          found_configs = CONFIG_REGEX.findall(page_text)[-100:]
                           hy2_count = 0
                           vless_trojan_count = 0
 
