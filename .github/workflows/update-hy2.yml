@@ -172,7 +172,7 @@ jobs:
                           page_text = html.unescape(page_text)
                           
                           # استخراج همه کانفیگ‌ها از لابلای کپشن‌ها و توضیحات
-                          found_configs = CONFIG_REGEX.findall(page_text)[-10:]
+                          found_configs = CONFIG_REGEX.findall(page_text)[-100:]
                           hy2_count = 0
                           vless_trojan_count = 0
 
