@@ -2,9 +2,8 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    # اجرا هر ۳ ساعت یک‌بار
-    - cron: '12 */3 * * *'
-  workflow_dispatch: # امکان اجرای دستی با دکمه Run workflow
+    - cron: '0 * * * *' # هر ساعت، دقیقهٔ صفر به وقت UTC
+  workflow_dispatch: # اجرای دستی
 
 jobs:
   build:
