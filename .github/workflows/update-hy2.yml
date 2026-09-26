@@ -136,31 +136,24 @@ jobs:
 
           # تابع کمکی برای دانلود و پردازش ایمن سورس‌های گیت‌هاب/وب
           def fetch_urls(urls, target_protocols, target_list, label):
-    for raw_url in urls:
-        url = raw_url.split('#')[0].strip()
-        try:
-            res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-            if res.status_code == 200:
-                content = decode_if_base64(res.text)
-                lines = content.replace('\r', '').split('\n')
-                
-                matched = [line.strip() for line in lines if line.strip().startswith(target_protocols)]
-                
-                if len(matched) > 100:
-                    selected_lines = matched[:50] + matched[-50:]
-                else:
-                    selected_lines = matched
-                
-                count = 0
-                for line_clean in selected_lines:
-                    target_list.append(line_clean)
-                    count += 1
-                
-                print(f"OK ({label}): {url} [Extracted: {count}]")
-            else:
-                print(f"Warning ({res.status_code}): {url}")
-        except Exception as e:
-            print(f"Error ({label}): {url} -> {e}")
+              for raw_url in urls:
+                  url = raw_url.split('#')[0].strip()
+                  try:
+                      res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+                      if res.status_code == 200:
+                          content = decode_if_base64(res.text)
+                          lines = content.replace('\r', '').split('\n')[:50]
+                          count = 0
+                          for line in lines:
+                              line_clean = line.strip()
+                              if line_clean.startswith(target_protocols):
+                                  target_list.append(line_clean)
+                                  count += 1
+                          print(f"✅ موفق ({label}): {url} [استخراج شد: {count}]")
+                      else:
+                          print(f"⚠️ کد وضعیت ناموفق ({res.status_code}): {url}")
+                  except Exception as e:
+                      print(f"❌ خطا در دانلود ({label}): {url} -> {e}")
 
           # تابع اختصاصی برای اسکرپ جدیدترین پست‌های کانال‌های تلگرامی
           def fetch_telegram_channels(channels):
