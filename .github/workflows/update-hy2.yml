@@ -142,7 +142,7 @@ jobs:
                       res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
                       if res.status_code == 200:
                           content = decode_if_base64(res.text)
-                          lines = content.replace('\r', '').split('\n')[:100]
+                          lines = content.replace('\r', '').split('\n')[:50]
                           count = 0
                           for line in lines:
                               line_clean = line.strip()
@@ -172,7 +172,7 @@ jobs:
                           page_text = html.unescape(page_text)
                           
                           # استخراج همه کانفیگ‌ها از لابلای کپشن‌ها و توضیحات
-                          found_configs = CONFIG_REGEX.findall(page_text)[-100:]
+                          found_configs = CONFIG_REGEX.findall(page_text)[-50:]
                           hy2_count = 0
                           vless_trojan_count = 0
 
@@ -193,8 +193,8 @@ jobs:
                       print(f"❌ خطا در کانال تلگرام (@{ch_name}) -> {e}")
 
           # دریافت سورس‌های گیت‌هاب
-          # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
-          # fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
+          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
+          fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
 
           # دریافت سورس‌های تلگرام
           fetch_telegram_channels(TELEGRAM_CHANNELS)
