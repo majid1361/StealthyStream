@@ -197,7 +197,7 @@ jobs:
           # fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
 
           # دریافت سورس‌های تلگرام
-          # fetch_telegram_channels(TELEGRAM_CHANNELS)
+          fetch_telegram_channels(TELEGRAM_CHANNELS)
 
           # تابع فیلتر امنیتی و یکتا‌سازی
           seen_keys = set()
