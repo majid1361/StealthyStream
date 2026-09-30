@@ -61,6 +61,7 @@ jobs:
           # ۳. کانال‌های عمومی تلگرام
           TELEGRAM_CHANNELS = [
               "prrofile_purple",
+              "mehrosaboran",
               "persianvpnhub",
               "daily_configs",
               "allproconf",
