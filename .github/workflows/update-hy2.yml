@@ -2,7 +2,7 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    - cron: '0 * * * *' # هر ساعت، دقیقهٔ صفر به وقت UTC
+    - cron: '0 0 * * *'  # هر روز، دقیقه صفر، ساعت صفر UTC
   workflow_dispatch: # اجرای دستی
 
 jobs:
