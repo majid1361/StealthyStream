@@ -1,0 +1,1 @@
+hysteria2://8A9905B7-801B-41AF-BFC9-2034212770F6@sg4.dexlos.com:20654?security=tls&obfs=salamander&obfs-password=xK9mN2pLq5vR8wB3&insecure=0&sni=sg4.dexlos.com#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-5233
