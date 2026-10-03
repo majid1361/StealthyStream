@@ -28,10 +28,11 @@ jobs:
       - name: Fetch, Deduplicate and Normalize Configs
         run: |
           python - << 'EOF'
+          import os
           import re
           import requests
           import base64
-          from urllib.parse import urlparse, parse_qs
+          from urllib.parse import urlparse, parse_qs, quote
 
           # ==========================================
           # 1. تنظیمات و منابع عمومی (Public URLs)
@@ -242,49 +243,50 @@ jobs:
           # ==========================================
           # 5. شماره‌گذاری متوالی و ذخیره‌سازی
           # ==========================================
-        counter_file = "counter.txt"
-        start_counter = 1
-        if os.path.exists(counter_file):
-            try:
-                with open(counter_file, "r", encoding="utf-8") as f:
-                    content = f.read().strip()
-                    if content.isdigit():
-                        start_counter = int(content) + 1
-            except Exception:
-                pass
+          counter_file = "counter.txt"
+          start_counter = 1
+          if os.path.exists(counter_file):
+              try:
+                  with open(counter_file, "r", encoding="utf-8") as f:
+                      content = f.read().strip()
+                      if content.isdigit():
+                          start_counter = int(content) + 1
+              except Exception:
+                  pass
 
-        current_num = start_counter
-        tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
+          current_num = start_counter
+          tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
 
-        # ۱. شماره‌گذاری هیستریا
-        final_hy2 = []
-        for cfg in cleaned_hy2:
-            final_hy2.append(f"{cfg}#{tag_prefix}{current_num}")
-            current_num += 1
+          # ۱. شماره‌گذاری هیستریا
+          final_hy2 = []
+          for cfg in cleaned_hy2:
+              final_hy2.append(f"{cfg}#{tag_prefix}{current_num}")
+              current_num += 1
 
-        # ۲. شماره‌گذاری متوالی ویلس و تروجان
-        final_vless_trojan = []
-        for cfg in cleaned_vless_trojan:
-            final_vless_trojan.append(f"{cfg}#{tag_prefix}{current_num}")
-            current_num += 1
+          # ۲. شماره‌گذاری متوالی ویلس و تروجان
+          final_vless_trojan = []
+          for cfg in cleaned_vless_trojan:
+              final_vless_trojan.append(f"{cfg}#{tag_prefix}{current_num}")
+              current_num += 1
 
-        # ذخیره فایل‌ها
-        with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
-            f.write("\n".join(final_hy2) + ("\n" if final_hy2 else ""))
+          # ذخیره فایل‌ها
+          with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(final_hy2) + ("\n" if final_hy2 else ""))
 
-        with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
-            f.write("\n".join(final_vless_trojan) + ("\n" if final_vless_trojan else ""))
+          with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(final_vless_trojan) + ("\n" if final_vless_trojan else ""))
 
-        # به‌روزرسانی کانتر
-        total_configs = len(final_hy2) + len(final_vless_trojan)
-        last_saved_num = current_num - 1 if total_configs > 0 else (start_counter - 1 if start_counter > 1 else 0)
+          # به‌روزرسانی کانتر
+          total_configs = len(final_hy2) + len(final_vless_trojan)
+          last_saved_num = current_num - 1 if total_configs > 0 else (start_counter - 1 if start_counter > 1 else 0)
 
-        with open(counter_file, "w", encoding="utf-8") as f:
-            f.write(str(last_saved_num))
+          with open(counter_file, "w", encoding="utf-8") as f:
+              f.write(str(last_saved_num))
 
-        print(f"\n🎉 فایل hy2_filtered.txt آماده شد ({len(final_hy2)} کانفیگ).")
-        print(f"🎉 فایل vless_trojan_filtered.txt آماده شد ({len(final_vless_trojan)} کانفیگ).")
-        print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} ثبت گردید.")
+          print(f"\n🎉 فایل hy2_filtered.txt آماده شد ({len(final_hy2)} کانفیگ).")
+          print(f"🎉 فایل vless_trojan_filtered.txt آماده شد ({len(final_vless_trojan)} کانفیگ).")
+          print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} ثبت گردید.")
+          EOF
 
       - name: Commit and Push Changes
         run: |
