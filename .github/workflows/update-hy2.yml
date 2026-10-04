@@ -82,7 +82,7 @@ jobs:
               "vlesskeys",
               # "Shh_Proxy",
               # "Hope_Net",
-              # "Outline_ir"
+              "makvaslim"
           ]
 
           TIMEOUT = 15
