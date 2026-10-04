@@ -1,2 +1,2 @@
-hysteria2://8A9905B7-801B-41AF-BFC9-2034212770F6@sg4.dexlos.com:20654?security=tls&obfs=salamander&obfs-password=xK9mN2pLq5vR8wB3&insecure=0&sni=sg4.dexlos.com#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-645
-hysteria2://e19b5aa3-16c9-435a-8bc9-76f2f6ddff43@222.167.245.240:28015/?sni=api-test-udp-traffic.kaneki.cfd#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-646
+hysteria2://8A9905B7-801B-41AF-BFC9-2034212770F6@sg4.dexlos.com:20654?security=tls&obfs=salamander&obfs-password=xK9mN2pLq5vR8wB3&insecure=0&sni=sg4.dexlos.com#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-954
+hysteria2://e19b5aa3-16c9-435a-8bc9-76f2f6ddff43@222.167.245.240:28015/?sni=api-test-udp-traffic.kaneki.cfd#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-955
