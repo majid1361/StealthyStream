@@ -1,5 +1,5 @@
-hysteria2://8A9905B7-801B-41AF-BFC9-2034212770F6@sg4.dexlos.com:20654?security=tls&obfs=salamander&obfs-password=xK9mN2pLq5vR8wB3&insecure=0&sni=sg4.dexlos.com#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-2898
-hysteria2://ca78f919e6@155.94.134.183:11592?alpn=h3&insecure=0&obfs=salamander&obfs-password=ec66908dbc46e6920143d9b684adf277&security=tls&sni=srv-3fc7c9.21freedom.net#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-2899
-hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@77.74.123.105:8443/?sni=grape-test-italy.dynuddns.net#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-2900
-hysteria2://9Me_Jx935gnHx13_Nx45M_NYXe037js_Be4z@162.249.127.136:8443/?sni=hop-germany-september.dynuddns.com#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-2901
-hysteria2://529f1911-04d5-4427-94b9-c851fd459a27@nl-hy-test.tcp-reset-club.net:443/?sni=tcp-reset-club.net#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-2902
+hysteria2://8A9905B7-801B-41AF-BFC9-2034212770F6@sg4.dexlos.com:20654?security=tls&obfs=salamander&obfs-password=xK9mN2pLq5vR8wB3&insecure=0&sni=sg4.dexlos.com#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-3230
+hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@77.74.123.105:8443/?sni=grape-test-italy.dynuddns.net#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-3231
+hysteria2://9Me_Jx935gnHx13_Nx45M_NYXe037js_Be4z@162.249.127.136:8443/?sni=hop-germany-september.dynuddns.com#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-3232
+hysteria2://529f1911-04d5-4427-94b9-c851fd459a27@nl-hy-test.tcp-reset-club.net:443/?sni=tcp-reset-club.net#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-3233
+hysteria2://ca78f919e6@155.94.134.183:11592/?obfs=salamander&obfs-password=ec66908dbc46e6920143d9b684adf277&sni=srv-3fc7c9.21freedom.net#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-3234
