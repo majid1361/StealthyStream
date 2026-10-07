@@ -99,7 +99,6 @@ jobs:
               "allowinsecure=1", "allowinsecure=true", 
               "skip-cert-verify=1", "skip-cert-verify=true", 
               "tlsinsecure=1", "tlsinsecure=true", "mitm",
-              "type=xhttp", "type=splithttp", "type=kcp", "type=quic",
               "ech=", "finalmask", "fragment",
               "@127.0.0.1:", "@localhost:", "@0.0.0.0:"
           )
