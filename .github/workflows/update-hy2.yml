@@ -61,27 +61,27 @@ jobs:
           # ۳. کانال‌های عمومی تلگرام
           TELEGRAM_CHANNELS = [
               "prrofile_purple",
-              # "mehrosaboran",
+              "mehrosaboran",
               "persianvpnhub",
-              # "daily_configs",
+              "daily_configs",
               "allproconf",
-              # "flyv2ray",
+              "flyv2ray",
               "vpnplusee_free",
               "oneclickvpnkeys",
-              # "ConfigV2rayNG",
-              # "V2rayuir",
+              "ConfigV2rayNG",
+              "V2rayuir",
               "VIProxys",
               "v2ray_dalghak1",
-              # "proxy_kafee",
-              # "FreakConfig",
-              # "VmessProtocol",
-              # "v2rayNG_Matsuri",
-              # "VpnProxy4free",
+              "proxy_kafee",
+              "FreakConfig",
+              "VmessProtocol",
+              "v2rayNG_Matsuri",
+              "VpnProxy4free",
               "PrivateVPNs",
-              # "free1_vpn",
+              "free1_vpn",
               "vlesskeys",
-              # "Shh_Proxy",
-              # "Hope_Net",
+              "Shh_Proxy",
+              "Hope_Net",
               "makvaslim"
           ]
 
@@ -176,7 +176,7 @@ jobs:
                           page_text = html.unescape(page_text)
                           
                           # استخراج همه کانفیگ‌ها از لابلای کپشن‌ها و توضیحات
-                          found_configs = CONFIG_REGEX.findall(page_text)[-200:]
+                          found_configs = CONFIG_REGEX.findall(page_text)[-100:]
                           hy2_count = 0
                           vless_trojan_count = 0
 
@@ -197,8 +197,8 @@ jobs:
                       print(f"❌ خطا در کانال تلگرام (@{ch_name}) -> {e}")
 
           # دریافت سورس‌های گیت‌هاب
-          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
-          fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
+          # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
+          # fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
 
           # دریافت سورس‌های تلگرام
           fetch_telegram_channels(TELEGRAM_CHANNELS)
