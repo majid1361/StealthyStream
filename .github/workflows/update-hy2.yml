@@ -2,7 +2,7 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # هر ۳ ساعت یک‌بار اتوماتیک اجرا می‌شود
+    - cron: '0 0 * * *'  # هر روز، دقیقه صفر، ساعت صفر UTC
   workflow_dispatch: # اجرای دستی
 
 jobs:
@@ -20,17 +20,12 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests
 
-      - name: Fetch, Deduplicate and Normalize Configs (including NPV)
+      - name: Fetch, Deduplicate and Normalize Configs
         run: |
           python - << 'EOF'
           import os
@@ -63,7 +58,7 @@ jobs:
               "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt"
           ]
 
-          # ۳. کانال‌های عمومی تلگرام (سورس‌های عمومی)
+          # ۳. کانال‌های عمومی تلگرام
           TELEGRAM_CHANNELS = [
               "prrofile_purple",
               "mehrosaboran",
@@ -90,17 +85,6 @@ jobs:
               "makvaslim"
           ]
 
-          # ========================================================
-          # ۴. سورس‌های تفکیک‌شده تلگرام مخصوص فایل‌ها و کانفیگ‌های NPV / NPVT
-          # اینجا کانال‌هایی که فایل یا متون NPVTunnel می‌فرستند را اضافه کن
-          # ========================================================
-          TELEGRAM_NPV_SOURCES = [
-              "VIPV2rayNGNP",
-              "v2rayngvpn"
-              # می‌توانی چنل‌های جدید NPV را اینجا اضافه کنی:
-              # "example_npv_channel",
-          ]
-
           TIMEOUT = 15
           HEADERS = {
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -108,9 +92,8 @@ jobs:
 
           HY2_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
           VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
-          NPV_PROTOCOLS = ("vless://", "vmess://", "trojan://", "ss://", "hysteria2://", "hy2://")
-
-          # الگوهای ناامن و ناسازگار قبلی
+          
+          # الگوهای ناامن و ناسازگار
           UNSAFE_PATTERNS = (
               "insecure=1", "insecure=true", 
               "allowinsecure=1", "allowinsecure=true", 
@@ -120,16 +103,15 @@ jobs:
               "@127.0.0.1:", "@localhost:", "@0.0.0.0:"
           )
 
+          # ریجکس قدرتمند برای استخراج کانفیگ از متون و کپشن‌های تلگرام
           CONFIG_REGEX = re.compile(r'(?:vless|trojan|hysteria2|hysteria|hy2)://[^\s<>"\'`]+', re.IGNORECASE)
-          NPVT_TOKEN_REGEX = re.compile(r'(?:npvt://[^\s<>"\'`]+|NPVT1\s+[A-Za-z0-9+/=_\s,-]+)', re.IGNORECASE)
 
           raw_hy2_items = []
           raw_vless_trojan_items = []
-          raw_npv_items = []
 
           print("📥 در حال دریافت کانفیگ‌ها از منابع...")
 
-          # خواندن فایل کاستوم
+          # خواندن فایل کاستوم (تفکیک هوشمند ۲ زمانه)
           if os.path.exists("custom.txt"):
               try:
                   with open("custom.txt", "r", encoding="utf-8") as f:
@@ -144,6 +126,7 @@ jobs:
               except Exception as e:
                   print(f"❌ خطا در خواندن custom.txt -> {e}")
 
+          # تابع کمکی برای دیکود خودکار Base64 در صورت لزوم
           def decode_if_base64(text):
               text_stripped = text.strip()
               try:
@@ -154,6 +137,7 @@ jobs:
                   pass
               return text
 
+          # تابع کمکی برای دانلود و پردازش ایمن سورس‌های گیت‌هاب/وب
           def fetch_urls(urls, target_protocols, target_list, label):
               for raw_url in urls:
                   url = raw_url.split('#')[0].strip()
@@ -174,7 +158,7 @@ jobs:
                   except Exception as e:
                       print(f"❌ خطا در دانلود ({label}): {url} -> {e}")
 
-          # اسکرپ کانال‌های عمومی تلگرام
+          # تابع اختصاصی برای اسکرپ جدیدترین پست‌های کانال‌های تلگرامی
           def fetch_telegram_channels(channels):
               print("\n📡 در حال اسکرپ کانال‌های تلگرامی...")
               for ch in channels:
@@ -185,10 +169,12 @@ jobs:
                   try:
                       res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
                       if res.status_code == 200:
+                          # پاکسازی ساختار HTML تلگرام و تبدیل به متن تمیز
                           page_text = res.text
                           page_text = re.sub(r'<br\s*/?>', '\n', page_text)
                           page_text = html.unescape(page_text)
                           
+                          # استخراج همه کانفیگ‌ها از لابلای کپشن‌ها و توضیحات
                           found_configs = CONFIG_REGEX.findall(page_text)[-100:]
                           hy2_count = 0
                           vless_trojan_count = 0
@@ -209,47 +195,12 @@ jobs:
                   except Exception as e:
                       print(f"❌ خطا در کانال تلگرام (@{ch_name}) -> {e}")
 
-          # اختصاصی: واکشی و تبدیل سورس‌های NPV تلگرام
-          def fetch_npv_telegram_channels(channels):
-              print("\n🔐 در حال استخراج و پردازش سورس‌های NPV از تلگرام...")
-              for ch in channels:
-                  ch_name = ch.strip().replace("https://t.me/", "").replace("@", "").split("/")[0]
-                  if not ch_name:
-                      continue
-                  url = f"https://t.me/s/{ch_name}"
-                  try:
-                      res = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-                      if res.status_code == 200:
-                          page_text = res.text
-                          page_text = re.sub(r'<br\s*/?>', '\n', page_text)
-                          page_text = html.unescape(page_text)
+          # دریافت سورس‌های گیت‌هاب
+          # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
+          # fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
 
-                          # استخراج توکن‌های NPVT متنی و تبدیل
-                          npv_tokens = NPVT_TOKEN_REGEX.findall(page_text)
-                          for token in npv_tokens:
-                              clean_tok = token.strip()
-                              # ارسال به فایل موقت جهت دیکریپت
-                              with open("temp_npvt.txt", "w", encoding="utf-8") as tf:
-                                  tf.write(clean_tok)
-                              
-                              # اجرای لاجیک استخراج
-                              stream = os.popen("node npv_engine.js temp_npvt.txt")
-                              output = stream.read().splitlines()
-                              for out_cfg in output:
-                                  if out_cfg.strip().startswith(NPV_PROTOCOLS):
-                                      raw_npv_items.append(out_cfg.strip())
-
-                          print(f"✅ سورس NPV (@{ch_name}): توکن‌ها بررسی شدند [یافت شده: {len(raw_npv_items)}]")
-                      else:
-                          print(f"⚠️ سورس NPV (@{ch_name}): کد ناموفق ({res.status_code})")
-                  except Exception as e:
-                      print(f"❌ خطا در پردازش NPV (@{ch_name}) -> {e}")
-
-          # اجرای دریافت‌ها
-          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
-          fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "Vless/Trojan")
-          fetch_telegram_channels(TELEGRAM_CHANNELS)
-          fetch_npv_telegram_channels(TELEGRAM_NPV_SOURCES)
+          # دریافت سورس‌های تلگرام
+          # fetch_telegram_channels(TELEGRAM_CHANNELS)
 
           # تابع فیلتر امنیتی و یکتا‌سازی
           seen_keys = set()
@@ -258,6 +209,7 @@ jobs:
               for line in raw_list:
                   line_lower = line.lower()
                   
+                  # فیلتر امنیتی
                   if any(pattern in line_lower for pattern in UNSAFE_PATTERNS):
                       continue
 
@@ -291,11 +243,9 @@ jobs:
           print("\n🔍 در حال فیلتر، اعتبارسنجی و حذف موارد تکراری...")
           cleaned_hy2 = process_and_dedup(raw_hy2_items)
           cleaned_vless_trojan = process_and_dedup(raw_vless_trojan_items)
-          cleaned_npv = process_and_dedup(raw_npv_items)
 
           print(f"✨ تعداد هیستریا یکتا: {len(cleaned_hy2)}")
           print(f"✨ تعداد ویلس و تروجان یکتا: {len(cleaned_vless_trojan)}")
-          print(f"✨ تعداد NPV استخراج‌شده یکتا: {len(cleaned_npv)}")
 
           # مدیریت کانتر سراسری
           counter_file = "counter.txt"
@@ -311,7 +261,6 @@ jobs:
 
           current_num = start_counter
           tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
-          npv_tag_prefix = quote("⚡NPV-TITAN-")
 
           # ۱. شماره‌گذاری هیستریا
           final_hy2 = []
@@ -325,23 +274,12 @@ jobs:
               final_vless_trojan.append(f"{cfg}#{tag_prefix}{current_num}")
               current_num += 1
 
-          # ۳. کانفیگ‌های خروجی اختصاصی NPV
-          final_npv = []
-          npv_num = 1
-          for cfg in cleaned_npv:
-              final_npv.append(f"{cfg}#{npv_tag_prefix}{npv_num}")
-              npv_num += 1
-
           # ذخیره فایل‌ها
           with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(final_hy2) + ("\n" if final_hy2 else ""))
 
           with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(final_vless_trojan) + ("\n" if final_vless_trojan else ""))
-
-          # ذخیره فایل مجزای npv-filter درخواستی شما
-          with open("npv-filter", "w", encoding="utf-8") as f:
-              f.write("\n".join(final_npv) + ("\n" if final_npv else ""))
 
           # به‌روزرسانی کانتر
           total_configs = len(final_hy2) + len(final_vless_trojan)
@@ -352,12 +290,12 @@ jobs:
 
           print(f"\n🎉 فایل hy2_filtered.txt آماده شد ({len(final_hy2)} کانفیگ).")
           print(f"🎉 فایل vless_trojan_filtered.txt آماده شد ({len(final_vless_trojan)} کانفیگ).")
-          print(f"🎉 فایل npv-filter آماده شد ({len(final_npv)} کانفیگ اختصاصی NPV).")
+          print(f"🔢 شماره‌گذاری از {start_counter} تا {last_saved_num} ثبت گردید.")
           EOF
 
       - name: Commit and Push Changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add hy2_filtered.txt vless_trojan_filtered.txt npv-filter counter.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update configs & npv-filter [skip ci]" && git push)
+          git add hy2_filtered.txt vless_trojan_filtered.txt counter.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update Hy2 & Vless/Trojan configs [skip ci]" && git push)
