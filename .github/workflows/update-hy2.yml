@@ -95,8 +95,8 @@ jobs:
           # اینجا کانال‌هایی که فایل یا متون NPVTunnel می‌فرستند را اضافه کن
           # ========================================================
           TELEGRAM_NPV_SOURCES = [
-              "prrofile_purple",
-              "vpnplusee_free"
+              "VIPV2rayNGNP",
+              "v2rayngvpn"
               # می‌توانی چنل‌های جدید NPV را اینجا اضافه کنی:
               # "example_npv_channel",
           ]
