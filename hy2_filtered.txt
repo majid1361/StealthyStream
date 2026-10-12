@@ -1,2 +1,2 @@
-hysteria2://7ab3c77e-8fcc-4848-918f-cae3d4eac794@194.87.118.184:2053/?sni=match-stream.lovkisport.blog#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-4685
-hysteria2://35d26d53bc@109.104.153.124:11592?security=tls&obfs=salamander&obfs-password=87d72c2949c0ca85bbda09459244e374&insecure=0&sni=srv-0e5387.frd21.ru#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-4686
+hysteria2://7ab3c77e-8fcc-4848-918f-cae3d4eac794@194.87.118.184:2053/?sni=match-stream.lovkisport.blog#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-5171
+hysteria2://35d26d53bc@109.104.153.124:11592?security=tls&obfs=salamander&obfs-password=87d72c2949c0ca85bbda09459244e374&insecure=0&sni=srv-0e5387.frd21.ru#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-5172
