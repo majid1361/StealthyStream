@@ -1,11 +1,1 @@
-hysteria2://8f0gvz5eul6omhq4@giftcard.gateway-stream.com:52087?insecure=0&obfs=salamander&obfs-password=fuw2k1ddrouwxr3u&security=tls&sni=giftcard.gateway-stream.com#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1745
-hysteria2://acc89593-8200-4701-817b-c4d9727ea5a7@189.74.114.6:54183/?sni=outh.yandex-cloud.org#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1746
-hysteria2://acc89593-8200-4701-817b-c4d9727ea5a7@189.74.114.41:54183/?sni=outh.yandex-cloud.org#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1747
-hysteria2://acc89593-8200-4701-817b-c4d9727ea5a7@189.74.106.166:54183/?sni=outh.yandex-cloud.org#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1748
-hysteria2://36cd82d2-50b1-400d-b520-2acc9a8a6b40@de.northvale.cloud:443/?sni=de.northvale.cloud#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1749
-hysteria2://36cd82d2-50b1-400d-b520-2acc9a8a6b40@nl.northvale.cloud:443/?sni=nl.northvale.cloud#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1750
-hysteria2://36cd82d2-50b1-400d-b520-2acc9a8a6b40@sw.northvale.cloud:443/?sni=sw.northvale.cloud#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1751
-hysteria2://36cd82d2-50b1-400d-b520-2acc9a8a6b40@fi.northvale.cloud:443/?sni=fi.northvale.cloud#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1752
-hysteria2://36cd82d2-50b1-400d-b520-2acc9a8a6b40@lv1.northvale.cloud:443/?sni=lv.northvale.cloud#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1753
-hysteria2://36cd82d2-50b1-0029-b520-2acc9a8a6b40@194.55.235.77:443/?sni=api-l1-2.northvale.cloud#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1754
-hysteria2://35d26d53bc@109.104.153.124:11592?security=tls&obfs=salamander&obfs-password=87d72c2949c0ca85bbda09459244e374&insecure=0&sni=srv-0e5387.frd21.ru#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1755
+hysteria2://35d26d53bc@109.104.153.124:11592?security=tls&obfs=salamander&obfs-password=87d72c2949c0ca85bbda09459244e374&insecure=0&sni=srv-0e5387.frd21.ru#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-2165
