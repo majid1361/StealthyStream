@@ -60,7 +60,7 @@ jobs:
           ]
 
           # ─────────────────────────────────────────
-          # سورس‌های عمومی VLESS و سایر پروتکل‌های مجاز
+          # سورس‌های عمومی VLESS پروتکل‌های مجاز
           # ─────────────────────────────────────────
           VLESS_TROJAN_PUBLIC_URLS = [
               "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt",
@@ -287,7 +287,7 @@ jobs:
 
                       page_text = re.sub(r"<br\s*/?>", "\n", response.text)
                       page_text = html.unescape(page_text)
-                      found_configs = CONFIG_REGEX.findall(page_text)[-100:]
+                      found_configs = CONFIG_REGEX.findall(page_text)[-50:]
 
                       hy2_count = 0
                       vless_trojan_count = 0
@@ -314,7 +314,7 @@ jobs:
 
           # ─────────────────────────────────────────
           # اجرای دریافت تلگرام
-          # سورس‌های وب حفظ شده‌اند، اما طبق ساختار فعلی غیرفعال‌اند
+          # سورس‌های وب حفظ شده‌اند
           # ─────────────────────────────────────────
           # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
           # fetch_urls(
