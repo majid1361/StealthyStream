@@ -190,7 +190,7 @@ jobs:
                           page_text = re.sub(r'<br\s*/?>', '\n', page_text)
                           page_text = html.unescape(page_text)
 
-                          found_configs = CONFIG_REGEX.findall(page_text)[-50:]
+                          found_configs = CONFIG_REGEX.findall(page_text)[-100:]
                           hy2_count = 0
                           vless_trojan_count = 0
 
