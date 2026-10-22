@@ -1,2 +1,2 @@
-hysteria2://Telegram%3Avpnjey@179.61.138.145:36264?security=tls&obfs=salamander&obfs-password=Telegram%40vpnjey&insecure=0&sni=de2.jey.cc.cd#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1331
-hysteria2://35d26d53bc@109.104.153.124:11592?security=tls&obfs=salamander&obfs-password=87d72c2949c0ca85bbda09459244e374&insecure=0&sni=srv-0e5387.frd21.ru#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1332
+hysteria2://Telegram%3Avpnjey@179.61.138.145:36264?security=tls&obfs=salamander&obfs-password=Telegram%40vpnjey&insecure=0&sni=de2.jey.cc.cd#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1770
+hysteria2://35d26d53bc@109.104.153.124:11592?security=tls&obfs=salamander&obfs-password=87d72c2949c0ca85bbda09459244e374&insecure=0&sni=srv-0e5387.frd21.ru#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1771
