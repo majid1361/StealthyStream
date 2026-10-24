@@ -1,5 +1,7 @@
-hysteria2://Telegram%3Avpnjey@179.61.138.145:36264?security=tls&obfs=salamander&obfs-password=Telegram%40vpnjey&insecure=0&sni=de2.jey.cc.cd#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1273
-hysteria2://d4ca9415f0eac7897472e1e5b86d2e96@50.7.38.243:443/?sni=promo.betust.net#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1274
-hysteria2://78559873-84ef-4cab-a0b2-46d4cd20de4a@2.26.48.112:2053/?sni=noway.luxes.network#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1275
-hysteria2://78559873-84ef-4cab-a0b2-46d4cd20de4a@144.31.230.51:2053/?sni=sweden.luxes.network#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1276
-hysteria2://eBTe6Ax2pUts8oMEWoYVDfnSlHfkLffQ@152.32.254.68:5010?security=tls&obfs=salamander&obfs-password=7M4RXPFcQyQEGbkxBPfXo4bilMhCW2U9&insecure=0&sni=nas.aizhzo.com#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1277
+hysteria2://Telegram%3Avpnjey@179.61.138.145:36264?security=tls&obfs=salamander&obfs-password=Telegram%40vpnjey&insecure=0&sni=de2.jey.cc.cd#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1915
+hysteria2://d4ca9415f0eac7897472e1e5b86d2e96@50.7.38.243:443/?sni=promo.betust.net#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1916
+hysteria2://78559873-84ef-4cab-a0b2-46d4cd20de4a@2.26.48.112:2053/?sni=noway.luxes.network#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1917
+hysteria2://78559873-84ef-4cab-a0b2-46d4cd20de4a@144.31.230.51:2053/?sni=sweden.luxes.network#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1918
+hysteria2://d4ca9415f0eac7897472e1e5b86d2e96@promo.betust.net:443/#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1919
+hysteria2://41edb44c8e@103.88.243.142:11592/?sni=srv-17e124.21freedom.net#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1920
+hysteria2://41edb44c8e@srv-17e124.21freedom.net:11592/#%E2%99%BE%EF%B8%8FULTRA-TITAN-SRV-1921
