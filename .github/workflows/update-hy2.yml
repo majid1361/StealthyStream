@@ -280,9 +280,13 @@ jobs:
                           )
                           continue
 
-                      page_text = re.sub(r"<br\s*/?>", "\n", response.text)
+                      # 🟢 باز کردن تگ‌های بلاک و تاشو
+                      page_text = re.sub(r'<(div|br|p|blockquote)[^>]*>', '\n', response.text, flags=re.IGNORECASE)
+                      page_text = re.sub(r'<[^>]+>', '', page_text)
                       page_text = html.unescape(page_text)
-                      found_configs = CONFIG_REGEX.findall(page_text)[-50:]
+                      
+                      # کل کانفیگ‌های صفحه شکار شن
+                      found_configs = CONFIG_REGEX.findall(page_text)
 
                       hy2_count = 0
                       vless_trojan_count = 0
