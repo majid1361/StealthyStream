@@ -312,7 +312,7 @@ jobs:
                       print(f"❌ خطا در کانال @{channel_name}: {error}")
 
           # ─────────────────────────────────────────
-          # اجرای دریافت تلگرام
+          # اجرای دریافت از تلگرام
           # سورس‌های وب حفظ شده‌اند
           # ─────────────────────────────────────────
           # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
@@ -422,19 +422,8 @@ jobs:
           current_number = start_counter
           tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
 
-          # ─────────────────────────────────────────
-          # شماره‌گذاری خروجی هیستریا
-          # ─────────────────────────────────────────
-          final_hy2 = []
-
-          for config in cleaned_hy2:
-              final_hy2.append(
-                  f"{config}#{tag_prefix}{current_number}"
-              )
-              current_number += 1
-
-          # ─────────────────────────────────────────
-          # شماره‌گذاری خروجی سایر پروتکل‌های مجاز
+                    # ─────────────────────────────────────────
+          # شماره‌گذاری خروجی پروتکل‌های پایه
           # ─────────────────────────────────────────
           final_vless_trojan = []
 
@@ -445,16 +434,27 @@ jobs:
               current_number += 1
 
           # ─────────────────────────────────────────
+          # شماره‌گذاری خروجی پروتکل‌ هیستریا
+          # ─────────────────────────────────────────
+          final_hy2 = []
+
+          for config in cleaned_hy2:
+              final_hy2.append(
+                  f"{config}#{tag_prefix}{current_number}"
+              )
+              current_number += 1
+
+                    # ─────────────────────────────────────────
           # ذخیرهٔ خروجی‌ها در فایل‌های جداگانه
           # ─────────────────────────────────────────
-          with open("hy2_filtered.txt", "w", encoding="utf-8") as file:
-              file.write("\n".join(final_hy2))
-              if final_hy2:
-                  file.write("\n")
-
           with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as file:
               file.write("\n".join(final_vless_trojan))
               if final_vless_trojan:
+                  file.write("\n")
+
+          with open("hy2_filtered.txt", "w", encoding="utf-8") as file:
+              file.write("\n".join(final_hy2))
+              if final_hy2:
                   file.write("\n")
 
           # ─────────────────────────────────────────
