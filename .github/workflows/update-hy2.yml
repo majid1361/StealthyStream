@@ -419,7 +419,7 @@ jobs:
                   pass
 
           current_number = start_counter
-          tag_prefix = quote("⚡∞ ULTRA-TITAN-SRV-")
+          tag_prefix = quote("⚡ULTRA-TITAN-SRV-")
 
                     # ─────────────────────────────────────────
           # شماره‌گذاری خروجی پروتکل‌های پایه
