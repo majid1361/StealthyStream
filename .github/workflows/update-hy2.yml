@@ -402,6 +402,70 @@ jobs:
               "✨ تعداد کانفیگ‌های یکتای سایر پروتکل‌های مجاز: "
               f"{len(cleaned_vless_trojan)}"
           )
+          
+          # ─────────────────────────────────────────
+          # پالایش دامنه‌های نامعتبر و منقضی (DNS Filter)
+          # ─────────────────────────────────────────
+          import socket
+          import ipaddress
+          from concurrent.futures import ThreadPoolExecutor
+
+          def is_valid_and_alive(config_line: str) -> bool:
+              try:
+                  raw = config_line.strip()
+                  if not raw or "://" not in raw:
+                      return False
+
+                  match = re.search(r"://(?:[^@]+@)?(\[[a-fA-F0-9:]+\]|[^:/?#]+)(?::(\d+))?", raw)
+                  if not match:
+                      return False
+
+                  host = match.group(1).strip("[]")
+                  if not host:
+                      return False
+
+                  try:
+                      ip_obj = ipaddress.ip_address(host)
+                      if (
+                          ip_obj.is_loopback
+                          or ip_obj.is_unspecified
+                          or ip_obj.is_reserved
+                          or ip_obj.is_link_local
+                      ):
+                          return False
+                      return True
+                  except ValueError:
+                      pass
+
+                  try:
+                      socket.setdefaulttimeout(3)
+                      target_ip = socket.gethostbyname(host)
+                      ip_obj = ipaddress.ip_address(target_ip)
+                      if (
+                          ip_obj.is_loopback
+                          or ip_obj.is_unspecified
+                          or ip_obj.is_reserved
+                          or ip_obj.is_link_local
+                      ):
+                          return False
+                      return True
+                  except (socket.gaierror, socket.herror):
+                      return False
+
+              except Exception:
+                  return True
+
+          def safe_clean_configs(config_list, max_workers=50):
+              if not config_list:
+                  return []
+              with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                  results = list(executor.map(is_valid_and_alive, config_list))
+              return [cfg for cfg, valid in zip(config_list, results) if valid]
+
+          print("\n🌐 پالایش DNS و دامنه‌های غیرفعال...")
+          cleaned_hy2 = safe_clean_configs(cleaned_hy2)
+          cleaned_vless_trojan = safe_clean_configs(cleaned_vless_trojan)
+          print(f"✅ پس از فیلتر DNS -> هیستریا: {len(cleaned_hy2)} | سایر پروتکل‌ها: {len(cleaned_vless_trojan)}")
 
           # ─────────────────────────────────────────
           # ادامهٔ شماره‌گذاری سراسری از counter.txt
