@@ -60,7 +60,7 @@ jobs:
           ]
 
           # ─────────────────────────────────────────
-          # سورس‌های عمومی VLESS پروتکل‌های مجاز
+          # سورس‌های عمومی VLESS پروتکل‌های پایه
           # ─────────────────────────────────────────
           VLESS_TROJAN_PUBLIC_URLS = [
               "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt",
@@ -312,8 +312,7 @@ jobs:
                       print(f"❌ خطا در کانال @{channel_name}: {error}")
 
           # ─────────────────────────────────────────
-          # اجرای دریافت از تلگرام
-          # سورس‌های وب حفظ شده‌اند
+          # استخراج کانفیگ از سورسهای وب/گیت‌هاب
           # ─────────────────────────────────────────
           # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
           # fetch_urls(
@@ -420,7 +419,7 @@ jobs:
                   pass
 
           current_number = start_counter
-          tag_prefix = quote("♾️ULTRA-TITAN-SRV-")
+          tag_prefix = quote("∞ ULTRA-TITAN-SRV-")
 
                     # ─────────────────────────────────────────
           # شماره‌گذاری خروجی پروتکل‌های پایه
