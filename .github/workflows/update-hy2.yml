@@ -2,51 +2,75 @@ name: StealthyStream Multi-Source Aggregator
 
 on:
   schedule:
-    - cron: '0 0 * * *' # هر روز، ساعت ۰۰:۰۰ UTC
-  workflow_dispatch: # اجرای دستی
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stealthystream-updater
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      # ─────────────────────────────────────────────
-      # دریافت مخزن و آماده‌سازی پایتون
-      # ─────────────────────────────────────────────
+
+      # ═══════════════════════════════════════════════════════
+      #  ●  دریافت مخزن
+      # ═══════════════════════════════════════════════════════
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
+      # ═══════════════════════════════════════════════════════
+      #  ●  آماده‌سازی پایتون
+      # ═══════════════════════════════════════════════════════
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      # ─────────────────────────────────────────────
-      # نصب وابستگی‌ها
-      # ─────────────────────────────────────────────
+      # ═══════════════════════════════════════════════════════
+      #  ●  نصب وابستگی‌ها
+      # ═══════════════════════════════════════════════════════
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests
 
-      # ─────────────────────────────────────────────
-      # دریافت، پالایش، یکتاسازی و ذخیرهٔ کانفیگ‌ها
-      # ─────────────────────────────────────────────
+      # ═══════════════════════════════════════════════════════
+      #  ●  دریافت و پالایش کانفیگ‌ها
+      # ═══════════════════════════════════════════════════════
       - name: Fetch, Deduplicate and Normalize Configs
         run: |
-          python - << 'EOF'
+          python - << 'PYEOF'
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۱. کتابخانه‌ها
+          # ═══════════════════════════════════════════════════════
           import os
           import re
           import html
+          import json
           import base64
+          import ipaddress
+          import sys
+          import time
           import requests
           from urllib.parse import urlparse, parse_qs, quote
+          from requests.adapters import HTTPAdapter
+          try:
+              from urllib3.util.retry import Retry
+          except ImportError:
+              from requests.packages.urllib3.util.retry import Retry
 
-          # ─────────────────────────────────────────
-          # سورس‌های عمومی هیستریا (Hysteria 1 & 2)
-          # ─────────────────────────────────────────
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۲. منابع
+          # ═══════════════════════════════════════════════════════
           HY2_PUBLIC_URLS = [
               "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/all_extracted_configs.txt",
               "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/python/hysteria2",
@@ -59,9 +83,6 @@ jobs:
               "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt"
           ]
 
-          # ─────────────────────────────────────────
-          # سورس‌های عمومی VLESS پروتکل‌های پایه
-          # ─────────────────────────────────────────
           VLESS_TROJAN_PUBLIC_URLS = [
               "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt",
               "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/vless",
@@ -71,9 +92,6 @@ jobs:
               "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt"
           ]
 
-          # ─────────────────────────────────────────
-          # کانال‌های عمومی تلگرام
-          # ─────────────────────────────────────────
           TELEGRAM_CHANNELS = [
               "prrofile_purple",
               "mehrosaboran",
@@ -96,10 +114,14 @@ jobs:
               "makvaslim"
           ]
 
-          # ─────────────────────────────────────────
-          # تنظیمات عمومی درخواست‌ها
-          # ─────────────────────────────────────────
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۳. تنظیمات
+          # ═══════════════════════════════════════════════════════
           TIMEOUT = 15
+          MAX_BYTES = 5_000_000
+          CHANNEL_SLEEP = 0.4
+
           HEADERS = {
               "User-Agent": (
                   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -108,26 +130,11 @@ jobs:
               )
           }
 
-          # ─────────────────────────────────────────
-          # پروتکل‌های مجاز و تفکیک فایل‌های خروجی
-          # ─────────────────────────────────────────
-          HY2_PROTOCOLS = (
-              "hysteria2://",
-              "hysteria://",
-              "hy2://"
-          )
+          HY2_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
+          VLESS_TROJAN_PROTOCOLS = ("vless://", "vmess://", "trojan://", "tuic://", "warp://")
+          ALL_PROTOCOLS = HY2_PROTOCOLS + VLESS_TROJAN_PROTOCOLS
+          FULL_TEXT_PROTOCOLS = {"vmess", "warp", "tuic"}
 
-          VLESS_TROJAN_PROTOCOLS = (
-              "vless://",
-              "vmess://",
-              "trojan://",
-              "tuic://",
-              "warp://"
-          )
-
-          # ─────────────────────────────────────────
-          # الگوهای ناامن یا ناسازگار برای حذف
-          # ─────────────────────────────────────────
           UNSAFE_PATTERNS = (
               "insecure=1",
               "insecure=true",
@@ -140,359 +147,463 @@ jobs:
               "mitm",
               "@127.0.0.1:",
               "@localhost:",
-              "@0.0.0.0:"
+              "@0.0.0.0:",
           )
 
-          # ─────────────────────────────────────────
-          # الگوی استخراج پروتکل‌های مجاز از تلگرام
-          # ─────────────────────────────────────────
           CONFIG_REGEX = re.compile(
               r'(?:vless|vmess|trojan|tuic|warp|hysteria2|hysteria|hy2)://[^\s<>"\'`]+',
-              re.IGNORECASE
+              re.IGNORECASE,
           )
 
-          # ─────────────────────────────────────────
-          # محل نگهداری موقت کانفیگ‌های خام
-          # ─────────────────────────────────────────
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۴. ذخیره‌سازی موقت
+          # ═══════════════════════════════════════════════════════
           raw_hy2_items = []
           raw_vless_trojan_items = []
 
-          print("📥 دریافت کانفیگ‌ها آغاز شد.")
 
-          # ─────────────────────────────────────────
-          # خواندن و تفکیک کانفیگ‌های custom.txt
-          # ─────────────────────────────────────────
-          if os.path.exists("custom.txt"):
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۵. نشست HTTP
+          # ═══════════════════════════════════════════════════════
+          session = requests.Session()
+          session.headers.update(HEADERS)
+          _retry = Retry(
+              total=3,
+              backoff_factor=1,
+              status_forcelist=[429, 500, 502, 503, 504],
+              allowed_methods=["GET"],
+          )
+          _adapter = HTTPAdapter(max_retries=_retry)
+          session.mount("https://", _adapter)
+          session.mount("http://", _adapter)
+
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۶. توابع کمکی
+          # ═══════════════════════════════════════════════════════
+          def file_non_empty(path):
+              if not os.path.exists(path):
+                  return False
               try:
-                  with open("custom.txt", "r", encoding="utf-8") as file:
-                      lines = file.read().replace("\r", "").split("\n")
-
-                  for line in lines:
-                      line_clean = line.strip()
-
-                      if line_clean.startswith(HY2_PROTOCOLS):
-                          raw_hy2_items.append(line_clean)
-                      elif line_clean.startswith(VLESS_TROJAN_PROTOCOLS):
-                          raw_vless_trojan_items.append(line_clean)
-
-                  print("✅ فایل custom.txt خوانده و تفکیک شد.")
-              except Exception as error:
-                  print(f"❌ خطا در خواندن custom.txt: {error}")
-
-          # ─────────────────────────────────────────
-          # دیکود Base64 در صورت نیاز
-          # ─────────────────────────────────────────
-          def decode_if_base64(text):
-              text_stripped = text.strip()
-
-              try:
-                  decoded = base64.b64decode(
-                      text_stripped,
-                      validate=True
-                  ).decode("utf-8", errors="ignore")
-
-                  supported_protocols = (
-                      "vless://",
-                      "vmess://",
-                      "trojan://",
-                      "tuic://",
-                      "warp://",
-                      "hysteria2://",
-                      "hysteria://",
-                      "hy2://"
-                  )
-
-                  if any(protocol in decoded for protocol in supported_protocols):
-                      return decoded
+                  with open(path, "r", encoding="utf-8") as f:
+                      return any(l.strip() for l in f)
               except Exception:
-                  pass
+                  return False
 
+
+          def decode_if_base64(text):
+              stripped = text.strip()
+              if not stripped:
+                  return text
+              if any(p in stripped for p in ALL_PROTOCOLS):
+                  return text
+
+              pad = "=" * ((4 - len(stripped) % 4) % 4)
+              for cand in (stripped, stripped + pad):
+                  for decoder in (base64.b64decode, base64.urlsafe_b64decode):
+                      try:
+                          decoded = decoder(cand, validate=False).decode(
+                              "utf-8", errors="ignore"
+                          )
+                      except Exception:
+                          continue
+                      if any(p in decoded for p in ALL_PROTOCOLS):
+                          return decoded
               return text
 
-          # ─────────────────────────────────────────
-          # دریافت و پردازش فایل‌های وب/گیت‌هاب
-          # ─────────────────────────────────────────
+
+          def is_private_or_invalid_host(host):
+              host = (host or "").strip("[]").strip().lower()
+              if not host:
+                  return True
+              if host in {"localhost", "0.0.0.0", "::", "::1"}:
+                  return True
+              if host.endswith(".local") or host.endswith(".localhost"):
+                  return True
+              try:
+                  ip = ipaddress.ip_address(host)
+              except ValueError:
+                  return False
+              return (
+                  ip.is_private
+                  or ip.is_loopback
+                  or ip.is_link_local
+                  or ip.is_multicast
+                  or ip.is_reserved
+                  or ip.is_unspecified
+              )
+
+
+          def split_host_port(netloc):
+              if netloc.startswith("["):
+                  end = netloc.find("]")
+                  if end != -1:
+                      host = netloc[1:end]
+                      port = netloc[end + 1:].lstrip(":") or "443"
+                      return host, port
+              if ":" in netloc:
+                  host, port = netloc.rsplit(":", 1)
+                  return host, (port or "443")
+              return netloc, "443"
+
+
+          def has_unsafe_pattern(url_part):
+              low = url_part.lower()
+              return any(p in low for p in UNSAFE_PATTERNS)
+
+
+          def vmess_is_unsafe(payload):
+              try:
+                  pad = "=" * ((4 - len(payload) % 4) % 4)
+                  raw = base64.b64decode(payload + pad, validate=False)
+                  data = json.loads(raw.decode("utf-8", errors="ignore"))
+              except Exception:
+                  return False
+              for k in (
+                  "allowInsecure", "allowinsecure",
+                  "skip-cert-verify", "skipCertVerify",
+              ):
+                  v = data.get(k)
+                  if v in (True, 1, "1", "true", "True"):
+                      return True
+              return False
+
+
+          def build_dedup_key(line):
+              try:
+                  parsed = urlparse(line)
+              except Exception:
+                  return None
+
+              protocol = (parsed.scheme or "").lower()
+              if not protocol:
+                  return None
+
+              if protocol in {"hy2", "hysteria", "hysteria2"}:
+                  protocol = "hysteria2"
+
+              base_config = line.split("#", 1)[0].strip()
+
+              if protocol in FULL_TEXT_PROTOCOLS:
+                  return (protocol, base_config)
+
+              if not parsed.netloc:
+                  return None
+
+              if "@" in parsed.netloc:
+                  user_info = parsed.netloc.rsplit("@", 1)[0]
+                  netloc = parsed.netloc.rsplit("@", 1)[1]
+              else:
+                  user_info = ""
+                  netloc = parsed.netloc
+
+              host, port = split_host_port(netloc)
+              host = host.lower().strip()
+
+              if is_private_or_invalid_host(host):
+                  return None
+
+              q = parse_qs(parsed.query, keep_blank_values=False)
+
+              def qv(*keys):
+                  for k in keys:
+                      v = q.get(k)
+                      if v and v[0]:
+                          return v[0].lower().strip()
+                  return ""
+
+              return (
+                  protocol,
+                  user_info,
+                  host,
+                  port,
+                  qv("sni", "serverName", "peer", "server_name"),
+                  qv("type", "net"),
+                  qv("path", "serviceName", "service_name"),
+                  qv("host"),
+                  qv("pbk", "publicKey", "public_key"),
+                  qv("sid", "shortId", "short_id"),
+                  qv("flow"),
+                  qv("security"),
+                  qv("fp"),
+                  qv("alpn"),
+                  qv("mode"),
+                  qv("headerType"),
+                  qv("spx"),
+              )
+
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۷. دریافت‌کننده‌ها
+          # ═══════════════════════════════════════════════════════
           def fetch_urls(urls, target_protocols, target_list, label):
               for raw_url in urls:
                   url = raw_url.split("#")[0].strip()
-
+                  if not url:
+                      continue
                   try:
-                      response = requests.get(
-                          url,
-                          headers=HEADERS,
-                          timeout=TIMEOUT
-                      )
-
-                      if response.status_code != 200:
-                          print(
-                              f"⚠️ دریافت ناموفق ({response.status_code}): {url}"
-                          )
+                      r = session.get(url, timeout=TIMEOUT)
+                      if r.status_code != 200:
+                          print(f"⚠️  [{label}] HTTP {r.status_code}: {url}")
+                          continue
+                      if len(r.content) > MAX_BYTES:
+                          print(f"⚠️  [{label}] حجم بیش از حد: {url}")
                           continue
 
-                      content = decode_if_base64(response.text)
-                      lines = content.replace("\r", "").split("\n")[:200]
-                      count = 0
+                      content = decode_if_base64(r.text)
+                      lines = content.replace("\r", "").split("\n")
 
+                      added = 0
+                      seen_in_source = set()
                       for line in lines:
-                          line_clean = line.strip()
+                          s = line.strip()
+                          if not s or s in seen_in_source:
+                              continue
+                          if not s.lower().startswith(target_protocols):
+                              continue
+                          seen_in_source.add(s)
+                          target_list.append(s)
+                          added += 1
 
-                          if line_clean.startswith(target_protocols):
-                              target_list.append(line_clean)
-                              count += 1
+                      print(f"✅ [{label}] +{added}  ←  {url}")
+                  except Exception as e:
+                      print(f"❌ [{label}] خطا در {url}: {e}")
 
-                      print(
-                          f"✅ منبع {label}: {url} "
-                          f"[تعداد استخراج‌شده: {count}]"
-                      )
 
-                  except Exception as error:
-                      print(f"❌ خطا در دریافت {label} از {url}: {error}")
-
-          # ─────────────────────────────────────────
-          # استخراج کانفیگ‌ها از صفحات عمومی تلگرام
-          # ─────────────────────────────────────────
           def fetch_telegram_channels(channels):
-              print("\n📡 استخراج کانفیگ‌ها از کانال‌های تلگرام آغاز شد.")
-
+              print("\n📡 استخراج از کانال‌های تلگرام آغاز شد.")
               for channel in channels:
-                  channel_name = (
+                  name = (
                       channel.strip()
                       .replace("https://t.me/", "")
                       .replace("@", "")
                       .split("/")[0]
                   )
-
-                  if not channel_name:
+                  if not name:
                       continue
 
-                  url = f"https://t.me/s/{channel_name}"
-
+                  url = f"https://t.me/s/{name}"
                   try:
-                      response = requests.get(
-                          url,
-                          headers=HEADERS,
-                          timeout=TIMEOUT
-                      )
-
-                      if response.status_code != 200:
-                          print(
-                              f"⚠️ کانال @{channel_name}: "
-                              f"وضعیت HTTP {response.status_code}"
-                          )
+                      r = session.get(url, timeout=TIMEOUT)
+                      if r.status_code != 200:
+                          print(f"⚠️  @{name}: HTTP {r.status_code}")
+                          time.sleep(CHANNEL_SLEEP)
                           continue
 
-                      # 🟢 باز کردن تگ‌های بلاک و تاشو
-                      page_text = re.sub(r'<(div|br|p|blockquote)[^>]*>', '\n', response.text, flags=re.IGNORECASE)
-                      page_text = re.sub(r'<[^>]+>', '', page_text)
-                      page_text = html.unescape(page_text)
-                      
-                      # کل کانفیگ‌های صفحه شکار شن
-                      found_configs = CONFIG_REGEX.findall(page_text)
+                      text = re.sub(
+                          r'</?(?:div|br|p|blockquote|pre|code|hr|li|tr|td|th|h[1-6])[^>]*>',
+                          '\n',
+                          r.text,
+                          flags=re.IGNORECASE,
+                      )
+                      text = re.sub(r'<[^>]+>', '', text)
+                      text = html.unescape(text)
+
+                      configs = CONFIG_REGEX.findall(text)
 
                       hy2_count = 0
-                      vless_trojan_count = 0
+                      other_count = 0
+                      seen = set()
 
-                      for config in found_configs:
-                          config_clean = config.strip().rstrip(".,;()[]{}")
-                          config_lower = config_clean.lower()
-
-                          if config_lower.startswith(HY2_PROTOCOLS):
-                              raw_hy2_items.append(config_clean)
+                      for cfg in configs:
+                          c = cfg.strip().rstrip('.,;()[]{}\'"')
+                          if not c or c in seen:
+                              continue
+                          seen.add(c)
+                          low = c.lower()
+                          if low.startswith(HY2_PROTOCOLS):
+                              raw_hy2_items.append(c)
                               hy2_count += 1
-                          elif config_lower.startswith(VLESS_TROJAN_PROTOCOLS):
-                              raw_vless_trojan_items.append(config_clean)
-                              vless_trojan_count += 1
+                          elif low.startswith(VLESS_TROJAN_PROTOCOLS):
+                              raw_vless_trojan_items.append(c)
+                              other_count += 1
 
-                      print(
-                          f"✅ تلگرام @{channel_name}: "
-                          f"Hy2: {hy2_count} | "
-                          f"سایر پروتکل‌های مجاز: {vless_trojan_count}"
-                      )
+                      print(f"✅ @{name}: Hy2={hy2_count} | Other={other_count}")
+                  except Exception as e:
+                      print(f"❌ @{name}: {e}")
+                  finally:
+                      time.sleep(CHANNEL_SLEEP)
 
-                  except Exception as error:
-                      print(f"❌ خطا در کانال @{channel_name}: {error}")
 
-          # ─────────────────────────────────────────
-          # استخراج کانفیگ از سورسهای وب/گیت‌هاب
-          # ─────────────────────────────────────────
-          # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2")
-          # fetch_urls(
-          #     VLESS_TROJAN_PUBLIC_URLS,
-          #     VLESS_TROJAN_PROTOCOLS,
-          #     raw_vless_trojan_items,
-          #     "VLESS/Other"
-          # )
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۸. بارگذاری فایل دستی
+          # ═══════════════════════════════════════════════════════
+          if os.path.exists("custom.txt"):
+              try:
+                  with open("custom.txt", "r", encoding="utf-8") as f:
+                      for line in f.read().replace("\r", "").split("\n"):
+                          s = line.strip()
+                          if not s:
+                              continue
+                          low = s.lower()
+                          if low.startswith(HY2_PROTOCOLS):
+                              raw_hy2_items.append(s)
+                          elif low.startswith(VLESS_TROJAN_PROTOCOLS):
+                              raw_vless_trojan_items.append(s)
+                  print("✅ custom.txt بارگذاری شد.")
+              except Exception as e:
+                  print(f"❌ خطا در خواندن custom.txt: {e}")
+
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۹. اجرای دریافت‌کننده‌ها
+          # ═══════════════════════════════════════════════════════
+          # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2/GitHub")
+          # fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "VLESS/GitHub")
 
           fetch_telegram_channels(TELEGRAM_CHANNELS)
 
-          # ─────────────────────────────────────────
-          # پالایش امنیتی و حذف کانفیگ‌های تکراری
-          # ─────────────────────────────────────────
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۱۰. پالایش و یکتاسازی
+          # ═══════════════════════════════════════════════════════
+          print("\n🔍 پالایش و یکتاسازی آغاز شد.")
+
           seen_keys = set()
 
-          def process_and_dedup(raw_list):
-              cleaned = []
+          def clean_and_dedup(raw_list, label):
+              out = []
+              dropped_unsafe = 0
+              dropped_invalid = 0
+              dropped_dup = 0
 
               for line in raw_list:
-                  line_lower = line.lower()
-
-                  if any(pattern in line_lower for pattern in UNSAFE_PATTERNS):
+                  if not line:
                       continue
 
-                  try:
-                      parsed = urlparse(line)
-                      protocol = parsed.scheme.lower()
+                  base = line.split("#", 1)[0].strip()
+                  if not base:
+                      continue
 
-                      # پروتکل‌هایی که یکتاسازی‌شان بر اساس کل متن انجام می‌شود
-                      if protocol in {
-                          "vmess",
-                          "warp",
-                          "tuic"
-                      }:
-                          base_config = line.split("#")[0].strip()
-                          unique_key = f"{protocol}:{base_config}"
-
-                          if unique_key not in seen_keys:
-                              seen_keys.add(unique_key)
-                              cleaned.append(base_config)
-
+                  if base.lower().startswith("vmess://"):
+                      payload = base[8:].strip()
+                      if vmess_is_unsafe(payload):
+                          dropped_unsafe += 1
                           continue
 
-                      # کلید یکتا بر اساس پروتکل، اطلاعات کاربر، میزبان،
-                      # پورت و SNI ساخته می‌شود.
-                      user_info = (
-                          parsed.netloc.rsplit("@", 1)[0]
-                          if "@" in parsed.netloc
-                          else ""
-                      )
-                      netloc = parsed.netloc.split("@")[-1]
-
-                      if ":" in netloc:
-                          host, port = netloc.split(":", 1)
-                      else:
-                          host, port = netloc, "443"
-
-                      host = host.lower().strip()
-                      port = port.strip()
-
-                      query_params = parse_qs(parsed.query)
-                      sni = query_params.get("sni", [""])[0].lower().strip()
-
-                      unique_key = (
-                          f"{protocol}:{user_info}:{host}:{port}:{sni}"
-                      )
-
-                      if unique_key not in seen_keys:
-                          seen_keys.add(unique_key)
-                          base_config = line.split("#")[0].strip()
-                          cleaned.append(base_config)
-
-                  except Exception:
+                  if has_unsafe_pattern(base):
+                      dropped_unsafe += 1
                       continue
 
-              return cleaned
+                  key = build_dedup_key(line)
+                  if key is None:
+                      dropped_invalid += 1
+                      continue
 
-          print("\n🔍 پالایش و یکتاسازی کانفیگ‌ها آغاز شد.")
+                  if key in seen_keys:
+                      dropped_dup += 1
+                      continue
 
-          cleaned_hy2 = process_and_dedup(raw_hy2_items)
-          cleaned_vless_trojan = process_and_dedup(raw_vless_trojan_items)
+                  seen_keys.add(key)
+                  out.append(base)
 
-          print(f"✨ تعداد کانفیگ‌های یکتای هیستریا: {len(cleaned_hy2)}")
-          print(
-              "✨ تعداد کانفیگ‌های یکتای سایر پروتکل‌های مجاز: "
-              f"{len(cleaned_vless_trojan)}"
-          )
+              print(
+                  f"  • {label}: نگه‌داشته={len(out)} | "
+                  f"امنیتی={dropped_unsafe} | "
+                  f"نامعتبر={dropped_invalid} | "
+                  f"تکراری={dropped_dup}"
+              )
+              return out
 
-          # ─────────────────────────────────────────
-          # ادامهٔ شماره‌گذاری سراسری از counter.txt
-          # ─────────────────────────────────────────
+          cleaned_hy2 = clean_and_dedup(raw_hy2_items, "Hy2")
+          cleaned_vless = clean_and_dedup(raw_vless_trojan_items, "VLESS/Other")
+
+          print(f"✨ تعداد یکتای Hy2: {len(cleaned_hy2)}")
+          print(f"✨ تعداد یکتای سایر: {len(cleaned_vless)}")
+
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۱۱. شماره‌گذاری
+          # ═══════════════════════════════════════════════════════
           counter_file = "counter.txt"
           start_counter = 1
 
           if os.path.exists(counter_file):
               try:
-                  with open(counter_file, "r", encoding="utf-8") as file:
-                      counter_content = file.read().strip()
-
-                  if counter_content.isdigit():
-                      start_counter = int(counter_content) + 1
+                  with open(counter_file, "r", encoding="utf-8") as f:
+                      txt = f.read().strip()
+                  if txt.isdigit():
+                      start_counter = int(txt) + 1
               except Exception:
                   pass
 
-          current_number = start_counter
           tag_prefix = quote("⚡ULTRA-TITAN-SRV-")
+          current_number = start_counter
 
-                    # ─────────────────────────────────────────
-          # شماره‌گذاری خروجی پروتکل‌های پایه
-          # ─────────────────────────────────────────
-          final_vless_trojan = []
-
-          for config in cleaned_vless_trojan:
-              final_vless_trojan.append(
-                  f"{config}#{tag_prefix}{current_number}"
-              )
+          final_vless = []
+          for cfg in cleaned_vless:
+              final_vless.append(f"{cfg}#{tag_prefix}{current_number}")
               current_number += 1
 
-          # ─────────────────────────────────────────
-          # شماره‌گذاری خروجی پروتکل‌ هیستریا
-          # ─────────────────────────────────────────
           final_hy2 = []
-
-          for config in cleaned_hy2:
-              final_hy2.append(
-                  f"{config}#{tag_prefix}{current_number}"
-              )
+          for cfg in cleaned_hy2:
+              final_hy2.append(f"{cfg}#{tag_prefix}{current_number}")
               current_number += 1
 
-                    # ─────────────────────────────────────────
-          # ذخیرهٔ خروجی‌ها در فایل‌های جداگانه
-          # ─────────────────────────────────────────
-          with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as file:
-              file.write("\n".join(final_vless_trojan))
-              if final_vless_trojan:
-                  file.write("\n")
 
-          with open("hy2_filtered.txt", "w", encoding="utf-8") as file:
-              file.write("\n".join(final_hy2))
-              if final_hy2:
-                  file.write("\n")
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۱۲. ذخیرهٔ خروجی‌ها
+          # ═══════════════════════════════════════════════════════
+          if not final_hy2 and not final_vless:
+              print("🛑 هیچ کانفیگی دریافت نشد — فایل‌های قبلی حفظ می‌شوند.")
+              sys.exit(0)
 
-          # ─────────────────────────────────────────
-          # ذخیرهٔ آخرین شمارهٔ استفاده‌شده
-          # ─────────────────────────────────────────
-          total_configs = len(final_hy2) + len(final_vless_trojan)
-
-          if total_configs > 0:
-              last_saved_number = current_number - 1
-          elif start_counter > 1:
-              last_saved_number = start_counter - 1
+          if final_hy2 or not file_non_empty("hy2_filtered.txt"):
+              with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
+                  if final_hy2:
+                      f.write("\n".join(final_hy2) + "\n")
+              print(f"🎉 hy2_filtered.txt → {len(final_hy2)} کانفیگ")
           else:
-              last_saved_number = 0
+              print("🛡️ hy2_filtered.txt حفظ شد (اجرای بدون نتیجه).")
 
-          with open(counter_file, "w", encoding="utf-8") as file:
-              file.write(str(last_saved_number))
+          if final_vless or not file_non_empty("vless_trojan_filtered.txt"):
+              with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
+                  if final_vless:
+                      f.write("\n".join(final_vless) + "\n")
+              print(f"🎉 vless_trojan_filtered.txt → {len(final_vless)} کانفیگ")
+          else:
+              print("🛡️ vless_trojan_filtered.txt حفظ شد (اجرای بدون نتیجه).")
 
-          print(
-              f"\n🎉 hy2_filtered.txt آماده شد "
-              f"({len(final_hy2)} کانفیگ)."
-          )
-          print(
-              f"🎉 vless_trojan_filtered.txt آماده شد "
-              f"({len(final_vless_trojan)} کانفیگ)."
-          )
-          print(
-              f"🔢 شماره‌گذاری از {start_counter} "
-              f"تا {last_saved_number} ثبت شد."
-          )
-          EOF
 
-      # ─────────────────────────────────────────────
-      # ثبت و ارسال فایل‌های خروجی به مخزن
-      # ─────────────────────────────────────────────
+          # ═══════════════════════════════════════════════════════
+          #  ●  ۱۳. ذخیرهٔ شمارنده
+          # ═══════════════════════════════════════════════════════
+          total_configs = len(final_hy2) + len(final_vless)
+          if total_configs > 0:
+              last_saved = current_number - 1
+          elif start_counter > 1:
+              last_saved = start_counter - 1
+          else:
+              last_saved = 0
+
+          tmp_path = counter_file + ".tmp"
+          with open(tmp_path, "w", encoding="utf-8") as f:
+              f.write(str(last_saved))
+          os.replace(tmp_path, counter_file)
+
+          print(f"🔢 شماره‌گذاری: {start_counter} → {last_saved}")
+
+          PYEOF
+
+      # ═══════════════════════════════════════════════════════
+      #  ●  ثبت و ارسال تغییرات
+      # ═══════════════════════════════════════════════════════
       - name: Commit and Push Changes
         run: |
-          git config user.name "github-actions[bot]"
+          git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add hy2_filtered.txt vless_trojan_filtered.txt counter.txt
-          git commit -m "Update filtered configs and counter [CI]" || exit 0
+
+          if git diff --cached --quiet; then
+            echo "ℹ️  تغییری برای commit وجود ندارد."
+            exit 0
+          fi
+
+          HY2_COUNT=$( [ -f hy2_filtered.txt ] && wc -l < hy2_filtered.txt || echo 0 )
+          VLESS_COUNT=$( [ -f vless_trojan_filtered.txt ] && wc -l < vless_trojan_filtered.txt || echo 0 )
+
+          git commit -m "Update configs (hy2=${HY2_COUNT}, vless=${VLESS_COUNT}) [CI]"
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
           git push
