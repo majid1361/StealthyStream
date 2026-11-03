@@ -1,9 +1,7 @@
-hysteria2://Telegram%3Avpnjey@179.61.138.145:36264?security=tls&obfs=salamander&obfs-password=Telegram%40vpnjey&insecure=0&sni=de2.jey.cc.cd#%E2%9A%A1ULTRA-TITAN-SRV-1116
-hysteria2://Telegram--CONFIG7X--CONFIG7X--CONFIG7X--CONFIG7X--CONFIG7X--CONFIG7X--CONFIG7X--CONFIG7X-@ir.config7x.site:26503?pinSHA256=22760B9798F4726D9B76C2F8FB4D5CEE6FDA9C6A75B391137937674AC5B2505F&sni=hy.config7x.site#%E2%9A%A1ULTRA-TITAN-SRV-1117
-hysteria2://59018379-d5df-4314-ab23-df0e838d7953@198.13.140.193:443/?obfs=salamander&obfs-password=litevpn&sni=efa11.lumariqis.com#%E2%9A%A1ULTRA-TITAN-SRV-1118
-hysteria2://e5ec2586-59b3-40fa-91b7-bb37a2f7744e@45.88.12.26:443/?sni=crt.onecloudstream.com#%E2%9A%A1ULTRA-TITAN-SRV-1119
-hysteria2://e48078c8-21ae-4d27-9438-b85492972894@84.245.18.209:443/?sni=hy.gerqix.autos#%E2%9A%A1ULTRA-TITAN-SRV-1120
-hysteria2://63e1b9462d708b56d5d5a0267cffecdc@88.216.195.188:443/?sni=promo3.goonars.com#%E2%9A%A1ULTRA-TITAN-SRV-1121
-hysteria2://70043bfa-d6fb-4980-b27e-773e9e8b2004@141.0.187.15:443/?sni=crt.onecloudstream.com#%E2%9A%A1ULTRA-TITAN-SRV-1122
-hysteria2://69e41e64-a832-471a-b740-94577ca85520@forshynewh.duckdns.org:443/?sni=forshynewh.duckdns.org#%E2%9A%A1ULTRA-TITAN-SRV-1123
-hysteria2://h05ff7mbgbj6dhwy@panel.trapxan.ir:2098?security=tls&obfs=salamander&obfs-password=7922smqtd5qm70fu&insecure=0&sni=panel.trapxan.ir#%E2%9A%A1ULTRA-TITAN-SRV-1124
+hysteria2://Telegram%3Avpnjey@179.61.138.145:36264?security=tls&obfs=salamander&obfs-password=Telegram%40vpnjey&insecure=0&sni=de2.jey.cc.cd#%E2%9A%A1ULTRA-TITAN-SRV-2221
+hysteria2://Telegram--CONFIG7X--CONFIG7X--CONFIG7X--CONFIG7X--CONFIG7X--CONFIG7X--CONFIG7X--CONFIG7X-@ir.config7x.site:26503?pinSHA256=22760B9798F4726D9B76C2F8FB4D5CEE6FDA9C6A75B391137937674AC5B2505F&sni=hy.config7x.site#%E2%9A%A1ULTRA-TITAN-SRV-2222
+hysteria2://63e1b9462d708b56d5d5a0267cffecdc@88.216.195.188:443/?sni=promo3.goonars.com#%E2%9A%A1ULTRA-TITAN-SRV-2223
+hysteria2://70043bfa-d6fb-4980-b27e-773e9e8b2004@141.0.187.15:443/?sni=crt.onecloudstream.com#%E2%9A%A1ULTRA-TITAN-SRV-2224
+hysteria2://69e41e64-a832-471a-b740-94577ca85520@forshynewh.duckdns.org:443/?sni=forshynewh.duckdns.org#%E2%9A%A1ULTRA-TITAN-SRV-2225
+hysteria2://f4b80b26-b6d4-49a6-a460-f50efb7a457c@45.91.237.78:443/?sni=node.aweom.su#%E2%9A%A1ULTRA-TITAN-SRV-2226
+hysteria2://h05ff7mbgbj6dhwy@panel.trapxan.ir:2098?security=tls&obfs=salamander&obfs-password=7922smqtd5qm70fu&insecure=0&sni=panel.trapxan.ir#%E2%9A%A1ULTRA-TITAN-SRV-2227
