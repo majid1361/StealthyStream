@@ -1,7 +1,7 @@
-hysteria2://Telegram%3Avpnjey@179.61.138.145:36264?security=tls&obfs=salamander&obfs-password=Telegram%40vpnjey&insecure=0&sni=de2.jey.cc.cd#%E2%9A%A1ULTRA-TITAN-SRV-3349
-hysteria2://63e1b9462d708b56d5d5a0267cffecdc@88.216.195.188:443/?sni=promo3.goonars.com#%E2%9A%A1ULTRA-TITAN-SRV-3350
-hysteria2://70043bfa-d6fb-4980-b27e-773e9e8b2004@141.0.187.15:443/?sni=crt.onecloudstream.com#%E2%9A%A1ULTRA-TITAN-SRV-3351
-hysteria2://69e41e64-a832-471a-b740-94577ca85520@forshynewh.duckdns.org:443/?sni=forshynewh.duckdns.org#%E2%9A%A1ULTRA-TITAN-SRV-3352
-hysteria2://f4b80b26-b6d4-49a6-a460-f50efb7a457c@45.91.237.78:443/?sni=node.aweom.su#%E2%9A%A1ULTRA-TITAN-SRV-3353
-hysteria2://ripa841juk7gwn4t@31.76.241.169:10005/?obfs=salamander&obfs-password=7kydvvvn3bwt66ff&sni=de.c0d1xdev.xyz#%E2%9A%A1ULTRA-TITAN-SRV-3354
-hysteria2://h05ff7mbgbj6dhwy@panel.trapxan.ir:2098?security=tls&obfs=salamander&obfs-password=7922smqtd5qm70fu&insecure=0&sni=panel.trapxan.ir#%E2%9A%A1ULTRA-TITAN-SRV-3355
+hysteria2://Telegram%3Avpnjey@179.61.138.145:36264?security=tls&obfs=salamander&obfs-password=Telegram%40vpnjey&insecure=0&sni=de2.jey.cc.cd#%E2%9A%A1ULTRA-TITAN-SRV-4435
+hysteria2://63e1b9462d708b56d5d5a0267cffecdc@88.216.195.188:443/?sni=promo3.goonars.com#%E2%9A%A1ULTRA-TITAN-SRV-4436
+hysteria2://70043bfa-d6fb-4980-b27e-773e9e8b2004@141.0.187.15:443/?sni=crt.onecloudstream.com#%E2%9A%A1ULTRA-TITAN-SRV-4437
+hysteria2://69e41e64-a832-471a-b740-94577ca85520@forshynewh.duckdns.org:443/?sni=forshynewh.duckdns.org#%E2%9A%A1ULTRA-TITAN-SRV-4438
+hysteria2://f4b80b26-b6d4-49a6-a460-f50efb7a457c@45.91.237.78:443/?sni=node.aweom.su#%E2%9A%A1ULTRA-TITAN-SRV-4439
+hysteria2://ripa841juk7gwn4t@31.76.241.169:10005/?obfs=salamander&obfs-password=7kydvvvn3bwt66ff&sni=de.c0d1xdev.xyz#%E2%9A%A1ULTRA-TITAN-SRV-4440
+hysteria2://h05ff7mbgbj6dhwy@panel.trapxan.ir:2098?security=tls&obfs=salamander&obfs-password=7922smqtd5qm70fu&insecure=0&sni=panel.trapxan.ir#%E2%9A%A1ULTRA-TITAN-SRV-4441
