@@ -521,7 +521,7 @@ jobs:
           # ═══════════════════════════════════════════════════════
           #  ●  ۱۱. شماره‌گذاری
           # ═══════════════════════════════════════════════════════
-          counter_file = "counter.txt"
+                    counter_file = "counter.txt"
           start_counter = 1
 
           if os.path.exists(counter_file):
@@ -534,11 +534,29 @@ jobs:
                   pass
 
           tag_prefix = quote("⚡ULTRA-TITAN-SRV-")
+          raw_tag_prefix = "⚡ULTRA-TITAN-SRV-"
           current_number = start_counter
 
           final_vless = []
           for cfg in cleaned_vless:
-              final_vless.append(f"{cfg}#{tag_prefix}{current_number}")
+              if cfg.startswith("vmess://"):
+                  try:
+                      b64_payload = cfg[8:]
+                      pad = "=" * ((4 - len(b64_payload) % 4) % 4)
+                      raw_json = base64.b64decode(b64_payload + pad, validate=False).decode('utf-8', errors='ignore')
+                      data = json.loads(raw_json)
+                      
+                      data["ps"] = f"{raw_tag_prefix}{current_number}"
+                      
+                      new_json_str = json.dumps(data, ensure_ascii=False)
+                      new_b64 = base64.b64encode(new_json_str.encode('utf-8')).decode('utf-8')
+                      
+                      final_vless.append(f"vmess://{new_b64}")
+                  except Exception:
+                      final_vless.append(cfg)
+              else:
+                  final_vless.append(f"{cfg}#{tag_prefix}{current_number}")
+              
               current_number += 1
 
           final_hy2 = []
