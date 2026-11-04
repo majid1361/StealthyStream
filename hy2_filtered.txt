@@ -1,3 +1,13 @@
-hysteria2://70043bfa-d6fb-4980-b27e-773e9e8b2004@141.0.187.15:443/?sni=crt.onecloudstream.com#%E2%9A%A1ULTRA-TITAN-SRV-9840
-hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.147:4444/?sni=pl2.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-9844
-hysteria2://f4b80b26-b6d4-49a6-a460-f50efb7a457c@45.91.237.78:443/?sni=node.aweom.su#%E2%9A%A1ULTRA-TITAN-SRV-9841
+hysteria2://bce6c821-200d-421f-bf3d-7159e5246ea0@hy2.123266.xyz:33333?sni=hy2.123266.xyz#%E2%9A%A1ULTRA-TITAN-SRV-15728
+hysteria2://70043bfa-d6fb-4980-b27e-773e9e8b2004@141.0.187.15:443/?sni=crt.onecloudstream.com#%E2%9A%A1ULTRA-TITAN-SRV-15700
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.149:4444?security=tls&insecure=0&sni=pl2.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-15711
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.147:4444?security=tls&insecure=0&sni=pl2.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-15710
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.142:4444?security=tls&insecure=0&sni=pl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-15707
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.105:4444?security=tls&insecure=0&sni=pl2.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-15705
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.188.142:4444?security=tls&insecure=0&sni=bl1.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-15704
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.147:4444/?sni=pl2.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-15709
+hysteria2://p7Q76LzlnS4hIzr1W3staBOnUe_WwSkR@130.49.161.70:443?security=tls&obfs=salamander&obfs-password=rG07s3COMIEvdnQipRyWzx_H_2xygNC3&insecure=0&sni=hy2.aspidnet.xyz#%E2%9A%A1ULTRA-TITAN-SRV-15718
+hysteria2://f4b80b26-b6d4-49a6-a460-f50efb7a457c@45.91.237.78:443/?sni=node.aweom.su#%E2%9A%A1ULTRA-TITAN-SRV-15716
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@pl3.nexfile.net:4444/?sni=pl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-15712
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.106:4444?security=tls&insecure=0&sni=pl2.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-15706
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.143:4444/?sni=pl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-15708
