@@ -1,5 +1,3 @@
-hysteria2://70043bfa-d6fb-4980-b27e-773e9e8b2004@141.0.187.15:443/?sni=crt.onecloudstream.com#%E2%9A%A1ULTRA-TITAN-SRV-8772
-hysteria2://f4b80b26-b6d4-49a6-a460-f50efb7a457c@45.91.237.78:443/?sni=node.aweom.su#%E2%9A%A1ULTRA-TITAN-SRV-8773
-hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.147:4444/?sni=pl2.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-8776
-hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.143:4444/?sni=pl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-8775
-hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@pl3.nexfile.net:4444/?sni=pl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-8777
+hysteria2://70043bfa-d6fb-4980-b27e-773e9e8b2004@141.0.187.15:443/?sni=crt.onecloudstream.com#%E2%9A%A1ULTRA-TITAN-SRV-9840
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.147:4444/?sni=pl2.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-9844
+hysteria2://f4b80b26-b6d4-49a6-a460-f50efb7a457c@45.91.237.78:443/?sni=node.aweom.su#%E2%9A%A1ULTRA-TITAN-SRV-9841
