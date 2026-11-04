@@ -587,6 +587,55 @@ jobs:
           PYEOF
 
       # ═══════════════════════════════════════════════════════
+      #  ●  تست زنده و حذف سرورهای مرده با xray-knife
+      # ═══════════════════════════════════════════════════════
+      - name: Live Test and Filter Dead Servers
+        timeout-minutes: 45
+        run: |
+          # ╔════════════════════════════════════════════════════╗
+          # ║  🔘  کلید فعال/غیرفعال کردن تست پینگ              ║
+          # ║  ────────────────────────────────────────────────  ║
+          # ║  برای غیرفعال کردن تست، ابتدای خط زیر یک # بگذارید ║
+          # ╚════════════════════════════════════════════════════╝
+          ENABLE_PING_TEST=true
+
+          if [ "${ENABLE_PING_TEST:-false}" != "true" ]; then
+            echo "⏸️  تست پینگ غیرفعال شد — فایل‌ها دست‌نخورده می‌مانند."
+            exit 0
+          fi
+
+          echo "🔧 نصب هسته Xray..."
+          bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install || { echo "❌ نصب Xray ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
+
+          echo "📥 دریافت xray-knife..."
+          KNIFE_URL=$(curl -s https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest | grep -o '"browser_download_url": *"[^"]*linux-64[^"]*"' | cut -d '"' -f 4 | head -n 1)
+          if [ -z "$KNIFE_URL" ]; then
+            echo "❌ لینک دانلود پیدا نشد — فایل‌ها بدون فیلتر commit می‌شوند."
+            exit 0
+          fi
+          wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ آماده‌سازی xray-knife ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
+
+          echo "🧪 تست Hy2 (با prescan — کانفیگ‌های UDP حفظ می‌شوند)..."
+          ./xray-knife http -f hy2_filtered.txt --prescan --prescan-workers 20 -t 20 -o hy2_alive.txt || true
+
+          echo "🧪 تست VLESS/Trojan/Reality/WS/gRPC..."
+          ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-workers 20 -t 20 -o vless_alive.txt || true
+
+          if [ -s hy2_alive.txt ]; then
+            mv hy2_alive.txt hy2_filtered.txt
+            echo "✅ hy2_filtered.txt با نتایج تست زنده به‌روز شد."
+          else
+            echo "🛡️ hy2_alive.txt خالی است — فایل قبلی Hy2 حفظ شد."
+          fi
+
+          if [ -s vless_alive.txt ]; then
+            mv vless_alive.txt vless_trojan_filtered.txt
+            echo "✅ vless_trojan_filtered.txt با نتایج تست زنده به‌روز شد."
+          else
+            echo "🛡️ vless_alive.txt خالی است — فایل قبلی VLESS حفظ شد."
+          fi
+
+      # ═══════════════════════════════════════════════════════
       #  ●  ثبت و ارسال تغییرات
       # ═══════════════════════════════════════════════════════
       - name: Commit and Push Changes
