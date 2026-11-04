@@ -449,8 +449,8 @@ jobs:
           # ═══════════════════════════════════════════════════════
           #  ●  ۹. اجرای دریافت‌کننده‌ها
           # ═══════════════════════════════════════════════════════
-          # fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2/GitHub")
-          # fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "VLESS/GitHub")
+          fetch_urls(HY2_PUBLIC_URLS, HY2_PROTOCOLS, raw_hy2_items, "Hy2/GitHub")
+          fetch_urls(VLESS_TROJAN_PUBLIC_URLS, VLESS_TROJAN_PROTOCOLS, raw_vless_trojan_items, "VLESS/GitHub")
 
           fetch_telegram_channels(TELEGRAM_CHANNELS)
 
