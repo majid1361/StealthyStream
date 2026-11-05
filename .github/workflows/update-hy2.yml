@@ -42,7 +42,7 @@ jobs:
           pip install requests
 
       # ═══════════════════════════════════════════════════════
-      #  ●  دریافت و پالایش کانفیگ‌ها
+      #  ●  دریافت، پالایش و ذخیره اولیه کانفیگ‌ها
       # ═══════════════════════════════════════════════════════
       - name: Fetch, Deduplicate and Normalize Configs
         run: |
@@ -340,7 +340,7 @@ jobs:
                           s = line.strip()
                           if not s or s in seen_in_source:
                               continue
-
+                          
                           low = s.lower()
                           if low.startswith(HY2_PROTOCOLS):
                               seen_in_source.add(s)
@@ -502,75 +502,27 @@ jobs:
 
 
           # ═══════════════════════════════════════════════════════
-          #  ●  ۱۱. شماره‌گذاری (بدون vmess — همه یکدست)
+          #  ●  ۱۱. ذخیرهٔ خروجی‌ها (بدون شماره‌گذاری)
           # ═══════════════════════════════════════════════════════
-          counter_file = "counter.txt"
-          start_counter = 1
-
-          if os.path.exists(counter_file):
-              try:
-                  with open(counter_file, "r", encoding="utf-8") as f:
-                      txt = f.read().strip()
-                  if txt.isdigit():
-                      start_counter = int(txt) + 1
-              except Exception:
-                  pass
-
-          tag_prefix = quote("⚡ULTRA-TITAN-SRV-")
-          current_number = start_counter
-
-          final_vless = []
-          for cfg in cleaned_vless:
-              final_vless.append(f"{cfg}#{tag_prefix}{current_number}")
-              current_number += 1
-
-          final_hy2 = []
-          for cfg in cleaned_hy2:
-              final_hy2.append(f"{cfg}#{tag_prefix}{current_number}")
-              current_number += 1
-
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۱۲. ذخیرهٔ خروجی‌ها
-          # ═══════════════════════════════════════════════════════
-          if not final_hy2 and not final_vless:
+          if not cleaned_hy2 and not cleaned_vless:
               print("🛑 هیچ کانفیگی دریافت نشد — فایل‌های قبلی حفظ می‌شوند.")
               sys.exit(0)
 
-          if final_hy2 or not file_non_empty("hy2_filtered.txt"):
+          if cleaned_hy2 or not file_non_empty("hy2_filtered.txt"):
               with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
-                  if final_hy2:
-                      f.write("\n".join(final_hy2) + "\n")
-              print(f"🎉 hy2_filtered.txt → {len(final_hy2)} کانفیگ")
+                  if cleaned_hy2:
+                      f.write("\n".join(cleaned_hy2) + "\n")
+              print(f"🎉 hy2_filtered.txt → {len(cleaned_hy2)} کانفیگ (بدون شماره)")
           else:
               print("🛡️ hy2_filtered.txt حفظ شد (اجرای بدون نتیجه).")
 
-          if final_vless or not file_non_empty("vless_trojan_filtered.txt"):
+          if cleaned_vless or not file_non_empty("vless_trojan_filtered.txt"):
               with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
-                  if final_vless:
-                      f.write("\n".join(final_vless) + "\n")
-              print(f"🎉 vless_trojan_filtered.txt → {len(final_vless)} کانفیگ")
+                  if cleaned_vless:
+                      f.write("\n".join(cleaned_vless) + "\n")
+              print(f"🎉 vless_trojan_filtered.txt → {len(cleaned_vless)} کانفیگ (بدون شماره)")
           else:
               print("🛡️ vless_trojan_filtered.txt حفظ شد (اجرای بدون نتیجه).")
-
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۱۳. ذخیرهٔ شمارنده
-          # ═══════════════════════════════════════════════════════
-          total_configs = len(final_hy2) + len(final_vless)
-          if total_configs > 0:
-              last_saved = current_number - 1
-          elif start_counter > 1:
-              last_saved = start_counter - 1
-          else:
-              last_saved = 0
-
-          tmp_path = counter_file + ".tmp"
-          with open(tmp_path, "w", encoding="utf-8") as f:
-              f.write(str(last_saved))
-          os.replace(tmp_path, counter_file)
-
-          print(f"🔢 شماره‌گذاری: {start_counter} → {last_saved}")
 
           PYEOF
 
@@ -583,7 +535,7 @@ jobs:
           # ╔════════════════════════════════════════════════════╗
           # ║  🔘  کلید فعال/غیرفعال کردن تست پینگ              ║
           # ║  ────────────────────────────────────────────────  ║
-          # ║  برای غیرفعال کردن تست، ابتدای خط زیر یک # بگذارید ║
+          # ║  برای غیرفعال کردن تست، این مقدار را false کنید.   ║
           # ╚════════════════════════════════════════════════════╝
           ENABLE_PING_TEST=true
 
@@ -612,7 +564,7 @@ jobs:
 
             if [ -f hy2_alive.txt ]; then
               sed -i '/^$/d' hy2_alive.txt
-
+              
               if [ -s hy2_alive.txt ]; then
                 mv hy2_alive.txt hy2_filtered.txt
                 echo "✅ hy2_filtered.txt با نتایج تست زنده به‌روز شد."
@@ -644,6 +596,67 @@ jobs:
           else
             echo "⚠️ فایل vless_trojan_filtered.txt خالی است — از تست VLESS عبور شد."
           fi
+
+      # ═══════════════════════════════════════════════════════
+      #  ●  شماره‌گذاری نهایی و ذخیره شمارنده
+      # ═══════════════════════════════════════════════════════
+      - name: Numbering and Save Counter
+        run: |
+          python - << 'PYEOF'
+          import os
+          from urllib.parse import quote
+
+          counter_file = "counter.txt"
+          start_counter = 1
+
+          if os.path.exists(counter_file):
+              try:
+                  with open(counter_file, "r", encoding="utf-8") as f:
+                      txt = f.read().strip()
+                  if txt.isdigit():
+                      start_counter = int(txt) + 1
+              except Exception:
+                  pass
+
+          tag_prefix = quote("⚡ULTRA-TITAN-SRV-")
+          current_number = start_counter
+
+          def number_file(filename):
+              global current_number
+              if not os.path.exists(filename):
+                  return
+              with open(filename, "r", encoding="utf-8") as f:
+                  lines = [l.strip() for l in f if l.strip()]
+              
+              if not lines:
+                  return
+
+              out_lines = []
+              for cfg in lines:
+                  base = cfg.split("#", 1)[0].strip()
+                  out_lines.append(f"{base}#{tag_prefix}{current_number}")
+                  current_number += 1
+                  
+              with open(filename, "w", encoding="utf-8") as f:
+                  f.write("\n".join(out_lines) + "\n")
+              print(f"🏷️ {filename} → شماره‌گذاری شد ({len(out_lines)} کانفیگ)")
+
+          number_file("vless_trojan_filtered.txt")
+          number_file("hy2_filtered.txt")
+
+          if current_number > start_counter:
+              last_saved = current_number - 1
+          elif start_counter > 1:
+              last_saved = start_counter - 1
+          else:
+              last_saved = 0
+
+          with open(counter_file + ".tmp", "w", encoding="utf-8") as f:
+              f.write(str(last_saved))
+          os.replace(counter_file + ".tmp", counter_file)
+
+          print(f"🔢 شماره‌گذاری نهایی: {start_counter} → {last_saved}")
+          PYEOF
 
       # ═══════════════════════════════════════════════════════
       #  ●  ثبت و ارسال تغییرات
