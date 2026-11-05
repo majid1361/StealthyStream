@@ -54,7 +54,6 @@ jobs:
           import os
           import re
           import html
-          import json
           import base64
           import ipaddress
           import sys
@@ -127,9 +126,9 @@ jobs:
           }
 
           HY2_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
-          VLESS_TROJAN_PROTOCOLS = ("vless://", "vmess://", "trojan://", "tuic://", "warp://")
+          VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://", "tuic://", "warp://")
           ALL_PROTOCOLS = HY2_PROTOCOLS + VLESS_TROJAN_PROTOCOLS
-          FULL_TEXT_PROTOCOLS = {"vmess", "warp", "tuic"}
+          FULL_TEXT_PROTOCOLS = {"warp", "tuic"}
 
           UNSAFE_PATTERNS = (
               "insecure=1",
@@ -147,7 +146,7 @@ jobs:
           )
 
           CONFIG_REGEX = re.compile(
-              r'(?:vless|vmess|trojan|tuic|warp|hysteria2|hysteria|hy2)://[^\s<>"\'`]+',
+              r'(?:vless|trojan|tuic|warp|hysteria2|hysteria|hy2)://[^\s<>"\'`]+',
               re.IGNORECASE,
           )
 
@@ -249,23 +248,6 @@ jobs:
               return any(p in low for p in UNSAFE_PATTERNS)
 
 
-          def vmess_is_unsafe(payload):
-              try:
-                  pad = "=" * ((4 - len(payload) % 4) % 4)
-                  raw = base64.b64decode(payload + pad, validate=False)
-                  data = json.loads(raw.decode("utf-8", errors="ignore"))
-              except Exception:
-                  return False
-              for k in (
-                  "allowInsecure", "allowinsecure",
-                  "skip-cert-verify", "skipCertVerify",
-              ):
-                  v = data.get(k)
-                  if v in (True, 1, "1", "true", "True"):
-                      return True
-              return False
-
-
           def build_dedup_key(line):
               try:
                   parsed = urlparse(line)
@@ -358,7 +340,7 @@ jobs:
                           s = line.strip()
                           if not s or s in seen_in_source:
                               continue
-                          
+
                           low = s.lower()
                           if low.startswith(HY2_PROTOCOLS):
                               seen_in_source.add(s)
@@ -472,6 +454,7 @@ jobs:
               dropped_unsafe = 0
               dropped_invalid = 0
               dropped_dup = 0
+              dropped_vmess = 0
 
               for line in raw_list:
                   if not line:
@@ -481,11 +464,10 @@ jobs:
                   if not base:
                       continue
 
-                  if base.lower().startswith("vmess://"):
-                      payload = base[8:].strip()
-                      if vmess_is_unsafe(payload):
-                          dropped_unsafe += 1
-                          continue
+                  # 🚫 محافظ: vmess کاملاً حذف شده — حتی اگر جایی سر درآورد
+                  if base[:8].lower() == "vmess://":
+                      dropped_vmess += 1
+                      continue
 
                   if has_unsafe_pattern(base):
                       dropped_unsafe += 1
@@ -507,7 +489,8 @@ jobs:
                   f"  • {label}: نگه‌داشته={len(out)} | "
                   f"امنیتی={dropped_unsafe} | "
                   f"نامعتبر={dropped_invalid} | "
-                  f"تکراری={dropped_dup}"
+                  f"تکراری={dropped_dup} | "
+                  f"vmess(drop)={dropped_vmess}"
               )
               return out
 
@@ -519,7 +502,7 @@ jobs:
 
 
           # ═══════════════════════════════════════════════════════
-          #  ●  ۱۱. شماره‌گذاری
+          #  ●  ۱۱. شماره‌گذاری (بدون vmess — همه یکدست)
           # ═══════════════════════════════════════════════════════
           counter_file = "counter.txt"
           start_counter = 1
@@ -534,29 +517,11 @@ jobs:
                   pass
 
           tag_prefix = quote("⚡ULTRA-TITAN-SRV-")
-          raw_tag_prefix = "⚡ULTRA-TITAN-SRV-"
           current_number = start_counter
 
           final_vless = []
           for cfg in cleaned_vless:
-              if cfg.startswith("vmess://"):
-                  try:
-                      b64_payload = cfg[8:]
-                      pad = "=" * ((4 - len(b64_payload) % 4) % 4)
-                      raw_json = base64.b64decode(b64_payload + pad, validate=False).decode('utf-8', errors='ignore')
-                      data = json.loads(raw_json)
-                      
-                      data["ps"] = f"{raw_tag_prefix}{current_number}"
-                      
-                      new_json_str = json.dumps(data, ensure_ascii=False)
-                      new_b64 = base64.b64encode(new_json_str.encode('utf-8')).decode('utf-8')
-                      
-                      final_vless.append(f"vmess://{new_b64}")
-                  except Exception:
-                      final_vless.append(cfg)
-              else:
-                  final_vless.append(f"{cfg}#{tag_prefix}{current_number}")
-              
+              final_vless.append(f"{cfg}#{tag_prefix}{current_number}")
               current_number += 1
 
           final_hy2 = []
@@ -646,9 +611,8 @@ jobs:
             ./xray-knife http -f hy2_filtered.txt --prescan --prescan-workers 20 -t 20 -o hy2_alive.txt || true
 
             if [ -f hy2_alive.txt ]; then
-              # پاک کردن خطوط خالی اضافی
               sed -i '/^$/d' hy2_alive.txt
-              
+
               if [ -s hy2_alive.txt ]; then
                 mv hy2_alive.txt hy2_filtered.txt
                 echo "✅ hy2_filtered.txt با نتایج تست زنده به‌روز شد."
@@ -668,7 +632,6 @@ jobs:
             ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-workers 20 -t 20 -o vless_alive.txt || true
 
             if [ -f vless_alive.txt ]; then
-              # پاک کردن خطوط خالی اضافی
               sed -i '/^$/d' vless_alive.txt
 
               if [ -s vless_alive.txt ]; then
