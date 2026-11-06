@@ -436,7 +436,7 @@ jobs:
           # ═══════════════════════════════════════════════════════
           
           # 💡 برای غیرفعال کردن گیت‌هاب، ابتدای خط زیر # بگذارید
-          # fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
+          fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
           
           # 💡 برای غیرفعال کردن تلگرام، ابتدای خط زیر # بگذارید
           fetch_telegram_channels(TELEGRAM_CHANNELS)
@@ -555,11 +555,11 @@ jobs:
           wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ آماده‌سازی xray-knife ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
 
           # ────────────────────────────────────────────────────────
-          # تست Hy2 (سخت‌گیرانه، پینگ حداکثر ۱ ثانیه)
+          # تست Hy2 (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۱۰ ثانیه‌ای)
           # ────────────────────────────────────────────────────────
           if [ -s hy2_filtered.txt ]; then
-            echo "🧪 تست Hy2 (سخت‌گیرانه، پینگ حداکثر ۱ ثانیه)..."
-            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --mdelay 1000 -t 5 -o hy2_alive.txt || true
+            echo "🧪 تست Hy2 (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۱۰ ثانیه‌ای)..."
+            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --mdelay 2000 -t 10 -o hy2_alive.txt || true
 
             if [ -f hy2_alive.txt ]; then
               sed -i '/^$/d' hy2_alive.txt
@@ -576,11 +576,11 @@ jobs:
           fi
 
           # ────────────────────────────────────────────────────────
-          # تست VLESS/Trojan (سخت‌گیرانه، پینگ حداکثر ۱ ثانیه)
+          # تست VLESS/Trojan (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۱۰ ثانیه‌ای)
           # ────────────────────────────────────────────────────────
           if [ -s vless_trojan_filtered.txt ]; then
-            echo "🧪 تست VLESS/Trojan (سخت‌گیرانه، پینگ حداکثر ۱ ثانیه)..."
-            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --mdelay 1000 -t 5 -o vless_alive.txt || true
+            echo "🧪 تست VLESS/Trojan (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۱۰ ثانیه‌ای)..."
+            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --mdelay 2000 -t 10 -o vless_alive.txt || true
 
             if [ -f vless_alive.txt ]; then
               sed -i '/^$/d' vless_alive.txt
