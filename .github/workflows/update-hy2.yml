@@ -555,42 +555,92 @@ jobs:
           wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ آماده‌سازی xray-knife ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
 
           # ────────────────────────────────────────────────────────
-          # تست Hy2 (پینگ حداکثر ۲ ثانیه، بدون محدودیت تعداد)
+          # تست Hy2 (خروجی CSV برای مرتب‌سازی بر اساس سرعت)
           # ────────────────────────────────────────────────────────
           if [ -s hy2_filtered.txt ]; then
-            echo "🧪 تست Hy2 (پینگ حداکثر ۲ ثانیه، بدون محدودیت تعداد)..."
-            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --mdelay 2000 -t 10 -o hy2_alive.txt || true
+            echo "🧪 تست Hy2 (بدون محدودیت تعداد، خروجی CSV برای مرتب‌سازی سرعت)..."
+            ./xray-knife http -f hy2_filtered.txt \
+              --prescan \
+              --prescan-timeout 4000 \
+              --prescan-workers 20 \
+              --mdelay 2000 \
+              -t 10 \
+              --speedtest \
+              --amount 2 \
+              --speedtest-timeout 10 \
+              --type csv \
+              -o hy2_results.csv || true
 
-            if [ -f hy2_alive.txt ]; then
-              sed -i '/^$/d' hy2_alive.txt
-              
+            if [ -f hy2_results.csv ]; then
+              python3 - << 'PYEOF'
+import csv, os
+n = 30
+rows = []
+with open('hy2_results.csv') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        if row.get('status') == 'passed':
+            rows.append(row)
+rows.sort(key=lambda x: float(x.get('download', 0) or 0), reverse=True)
+with open('hy2_alive.txt', 'w') as f:
+    for row in rows[:n]:
+        f.write(row['link'] + '\n')
+print(f"✅ {len(rows[:n])} کانفیگ Hy2 بر اساس سرعت انتخاب شد.")
+PYEOF
               if [ -s hy2_alive.txt ]; then
                 mv hy2_alive.txt hy2_filtered.txt
-                echo "✅ hy2_filtered.txt با نتایج تست زنده به‌روز شد."
+                echo "✅ hy2_filtered.txt با بهترین‌های Hy2 به‌روز شد."
               else
                 echo "🛡️ hy2_alive.txt خالی است — فایل قبلی Hy2 حفظ شد."
               fi
+            else
+              echo "🛡️ hy2_results.csv ساخته نشد — فایل قبلی Hy2 حفظ شد."
             fi
           else
             echo "⚠️ فایل hy2_filtered.txt خالی است — از تست Hy2 عبور شد."
           fi
 
           # ────────────────────────────────────────────────────────
-          # تست VLESS/Trojan (پینگ حداکثر ۲ ثانیه، بدون محدودیت تعداد)
+          # تست VLESS/Trojan (خروجی CSV برای مرتب‌سازی بر اساس سرعت)
           # ────────────────────────────────────────────────────────
           if [ -s vless_trojan_filtered.txt ]; then
-            echo "🧪 تست VLESS/Trojan (پینگ حداکثر ۲ ثانیه، بدون محدودیت تعداد)..."
-            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --mdelay 2000 -t 10 -o vless_alive.txt || true
+            echo "🧪 تست VLESS/Trojan (بدون محدودیت تعداد، خروجی CSV برای مرتب‌سازی سرعت)..."
+            ./xray-knife http -f vless_trojan_filtered.txt \
+              --prescan \
+              --prescan-timeout 4000 \
+              --prescan-workers 20 \
+              --mdelay 2000 \
+              -t 10 \
+              --speedtest \
+              --amount 2 \
+              --speedtest-timeout 10 \
+              --type csv \
+              -o vless_results.csv || true
 
-            if [ -f vless_alive.txt ]; then
-              sed -i '/^$/d' vless_alive.txt
-
+            if [ -f vless_results.csv ]; then
+              python3 - << 'PYEOF'
+import csv, os
+n = 30
+rows = []
+with open('vless_results.csv') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        if row.get('status') == 'passed':
+            rows.append(row)
+rows.sort(key=lambda x: float(x.get('download', 0) or 0), reverse=True)
+with open('vless_alive.txt', 'w') as f:
+    for row in rows[:n]:
+        f.write(row['link'] + '\n')
+print(f"✅ {len(rows[:n])} کانفیگ VLESS/Trojan بر اساس سرعت انتخاب شد.")
+PYEOF
               if [ -s vless_alive.txt ]; then
                 mv vless_alive.txt vless_trojan_filtered.txt
-                echo "✅ vless_trojan_filtered.txt با نتایج تست زنده به‌روز شد."
+                echo "✅ vless_trojan_filtered.txt با بهترین‌های VLESS/Trojan به‌روز شد."
               else
                 echo "🛡️ vless_alive.txt خالی است — فایل قبلی VLESS حفظ شد."
               fi
+            else
+              echo "🛡️ vless_results.csv ساخته نشد — فایل قبلی VLESS حفظ شد."
             fi
           else
             echo "⚠️ فایل vless_trojan_filtered.txt خالی است — از تست VLESS عبور شد."
