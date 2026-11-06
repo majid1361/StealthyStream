@@ -529,7 +529,7 @@ jobs:
       #  ●  تست زنده و حذف سرورهای مرده با xray-knife
       # ═══════════════════════════════════════════════════════
       - name: Live Test and Filter Dead Servers
-        timeout-minutes: 45
+        timeout-minutes: 120
         run: |
           # ╔════════════════════════════════════════════════════╗
           # ║  🔘  کلید فعال/غیرفعال کردن تست پینگ           ║
@@ -559,7 +559,7 @@ jobs:
           # ────────────────────────────────────────────────────────
           if [ -s hy2_filtered.txt ]; then
             echo "🧪 تست Hy2 (با prescan — کانفیگ‌های UDP حفظ می‌شوند)..."
-            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-workers 20 -t 20 -o hy2_alive.txt || true
+            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --speedtest --amount 2 --speedtest-timeout 10 --max-delay 3000 -t 15 -o hy2_alive.txt || true
 
             if [ -f hy2_alive.txt ]; then
               sed -i '/^$/d' hy2_alive.txt
@@ -580,7 +580,7 @@ jobs:
           # ────────────────────────────────────────────────────────
           if [ -s vless_trojan_filtered.txt ]; then
             echo "🧪 تست VLESS/Trojan/Reality/WS/gRPC..."
-            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-workers 20 -t 20 -o vless_alive.txt || true
+            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --speedtest --amount 2 --speedtest-timeout 10 --max-delay 3000 -t 15 -o vless_alive.txt || true
 
             if [ -f vless_alive.txt ]; then
               sed -i '/^$/d' vless_alive.txt
