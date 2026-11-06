@@ -558,13 +558,13 @@ jobs:
           # تست Hy2 (خروجی CSV برای مرتب‌سازی بر اساس سرعت)
           # ────────────────────────────────────────────────────────
           if [ -s hy2_filtered.txt ]; then
-            echo "🧪 تست Hy2 (بدون محدودیت تعداد، خروجی CSV برای مرتب‌سازی سرعت)..."
+            echo "🧪 تست Hy2 (خروجی CSV برای مرتب‌سازی سرعت)..."
             ./xray-knife http -f hy2_filtered.txt \
               --prescan \
               --prescan-timeout 4000 \
               --prescan-workers 20 \
-              --mdelay 2000 \
-              -t 10 \
+              --mdelay 3000 \
+              -t 15 \
               --speedtest \
               --amount 2 \
               --speedtest-timeout 10 \
@@ -573,20 +573,20 @@ jobs:
 
             if [ -f hy2_results.csv ]; then
               python3 - << 'PYEOF'
-import csv, os
-n = 30
-rows = []
-with open('hy2_results.csv') as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        if row.get('status') == 'passed':
-            rows.append(row)
-rows.sort(key=lambda x: float(x.get('download', 0) or 0), reverse=True)
-with open('hy2_alive.txt', 'w') as f:
-    for row in rows[:n]:
-        f.write(row['link'] + '\n')
-print(f"✅ {len(rows[:n])} کانفیگ Hy2 بر اساس سرعت انتخاب شد.")
-PYEOF
+          import csv, os
+          n = 30
+          rows = []
+          with open('hy2_results.csv') as f:
+              reader = csv.DictReader(f)
+              for row in reader:
+                  if row.get('status') == 'passed':
+                      rows.append(row)
+          rows.sort(key=lambda x: float(x.get('download', 0) or 0), reverse=True)
+          with open('hy2_alive.txt', 'w') as f:
+              for row in rows[:n]:
+                  f.write(row['link'] + '\n')
+          print(f"✅ {len(rows[:n])} کانفیگ Hy2 بر اساس سرعت انتخاب شد.")
+          PYEOF
               if [ -s hy2_alive.txt ]; then
                 mv hy2_alive.txt hy2_filtered.txt
                 echo "✅ hy2_filtered.txt با بهترین‌های Hy2 به‌روز شد."
@@ -604,13 +604,13 @@ PYEOF
           # تست VLESS/Trojan (خروجی CSV برای مرتب‌سازی بر اساس سرعت)
           # ────────────────────────────────────────────────────────
           if [ -s vless_trojan_filtered.txt ]; then
-            echo "🧪 تست VLESS/Trojan (بدون محدودیت تعداد، خروجی CSV برای مرتب‌سازی سرعت)..."
+            echo "🧪 تست VLESS/Trojan (خروجی CSV برای مرتب‌سازی سرعت)..."
             ./xray-knife http -f vless_trojan_filtered.txt \
               --prescan \
               --prescan-timeout 4000 \
               --prescan-workers 20 \
-              --mdelay 2000 \
-              -t 10 \
+              --mdelay 3000 \
+              -t 15 \
               --speedtest \
               --amount 2 \
               --speedtest-timeout 10 \
@@ -619,20 +619,20 @@ PYEOF
 
             if [ -f vless_results.csv ]; then
               python3 - << 'PYEOF'
-import csv, os
-n = 30
-rows = []
-with open('vless_results.csv') as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        if row.get('status') == 'passed':
-            rows.append(row)
-rows.sort(key=lambda x: float(x.get('download', 0) or 0), reverse=True)
-with open('vless_alive.txt', 'w') as f:
-    for row in rows[:n]:
-        f.write(row['link'] + '\n')
-print(f"✅ {len(rows[:n])} کانفیگ VLESS/Trojan بر اساس سرعت انتخاب شد.")
-PYEOF
+          import csv, os
+          n = 30
+          rows = []
+          with open('vless_results.csv') as f:
+              reader = csv.DictReader(f)
+              for row in reader:
+                  if row.get('status') == 'passed':
+                      rows.append(row)
+          rows.sort(key=lambda x: float(x.get('download', 0) or 0), reverse=True)
+          with open('vless_alive.txt', 'w') as f:
+              for row in rows[:n]:
+                  f.write(row['link'] + '\n')
+          print(f"✅ {len(rows[:n])} کانفیگ VLESS/Trojan بر اساس سرعت انتخاب شد.")
+          PYEOF
               if [ -s vless_alive.txt ]; then
                 mv vless_alive.txt vless_trojan_filtered.txt
                 echo "✅ vless_trojan_filtered.txt با بهترین‌های VLESS/Trojan به‌روز شد."
