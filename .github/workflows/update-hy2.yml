@@ -529,7 +529,7 @@ jobs:
       #  ●  تست زنده و حذف سرورهای مرده با xray-knife
       # ═══════════════════════════════════════════════════════
       - name: Live Test and Filter Dead Servers
-        timeout-minutes: 120
+        timeout-minutes: 180
         run: |
           # ╔════════════════════════════════════════════════════╗
           # ║  🔘  کلید فعال/غیرفعال کردن تست پینگ           ║
@@ -555,11 +555,11 @@ jobs:
           wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ آماده‌سازی xray-knife ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
 
           # ────────────────────────────────────────────────────────
-          # تست Hy2
+          # تست Hy2 (سخت‌گیرانه‌تر: پینگ بالاتر مجاز، سرعت دقیق‌تر)
           # ────────────────────────────────────────────────────────
           if [ -s hy2_filtered.txt ]; then
-            echo "🧪 تست Hy2 (با prescan — کانفیگ‌های UDP حفظ می‌شوند)..."
-            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --speedtest --amount 2 --speedtest-timeout 10 --mdelay 3000 -t 15 -o hy2_alive.txt || true
+            echo "🧪 تست Hy2 (پینگ تا ۸ ثانیه مجاز، سرعت ۱۰ مگابایتی)..."
+            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --speedtest --amount 10 --speedtest-timeout 20 --mdelay 8000 -t 20 -o hy2_alive.txt || true
 
             if [ -f hy2_alive.txt ]; then
               sed -i '/^$/d' hy2_alive.txt
@@ -576,11 +576,11 @@ jobs:
           fi
 
           # ────────────────────────────────────────────────────────
-          # تست VLESS/Trojan/Reality/WS/gRPC
+          # تست VLESS/Trojan (سخت‌گیرانه‌تر: پینگ بالاتر مجاز، سرعت دقیق‌تر)
           # ────────────────────────────────────────────────────────
           if [ -s vless_trojan_filtered.txt ]; then
-            echo "🧪 تست VLESS/Trojan/Reality/WS/gRPC..."
-            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --speedtest --amount 2 --speedtest-timeout 10 --mdelay 3000 -t 15 -o vless_alive.txt || true
+            echo "🧪 تست VLESS/Trojan (پینگ تا ۸ ثانیه مجاز، سرعت ۱۰ مگابایتی)..."
+            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --speedtest --amount 10 --speedtest-timeout 20 --mdelay 8000 -t 20 -o vless_alive.txt || true
 
             if [ -f vless_alive.txt ]; then
               sed -i '/^$/d' vless_alive.txt
