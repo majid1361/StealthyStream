@@ -1,8 +1,7 @@
-hysteria2://bce6c821-200d-421f-bf3d-7159e5246ea0@hy2.123266.xyz:33333?sni=hy2.123266.xyz#%E2%9A%A1ULTRA-TITAN-SRV-7593
-hysteria2://6d4abac0-86e6-11ef-83cc-f23c913c8d2b@ca3ddbd3-tmm5c0-tw2fdz-1s824.los.hyhuawei.com:443/?sni=ca3ddbd3-tmm5c0-tw2fdz-1s824.los.hyhuawei.com#%E2%9A%A1ULTRA-TITAN-SRV-7594
-hysteria2://eBTe6Ax2pUts8oMEWoYVDfnSlHfkLffQ@152.32.254.68:5010?security=tls&obfs=salamander&obfs-password=7M4RXPFcQyQEGbkxBPfXo4bilMhCW2U9&insecure=0&sni=nas.aizhzo.com#%E2%9A%A1ULTRA-TITAN-SRV-7595
-hysteria2://p7Q76LzlnS4hIzr1W3staBOnUe_WwSkR@130.49.161.70:443?security=tls&obfs=salamander&obfs-password=rG07s3COMIEvdnQipRyWzx_H_2xygNC3&insecure=0&sni=hy2.aspidnet.xyz#%E2%9A%A1ULTRA-TITAN-SRV-7596
-hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@179.253.82.47:4444/?sni=fl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-7597
-hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.142:4444?security=tls&insecure=0&sni=pl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-7598
-hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.149:4444?security=tls&insecure=0&sni=pl2.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-7599
-hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.96:4444?security=tls&insecure=0&sni=pl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-7600
+hysteria2://bce6c821-200d-421f-bf3d-7159e5246ea0@hy2.123266.xyz:33333?sni=hy2.123266.xyz#%E2%9A%A1ULTRA-TITAN-SRV-8520
+hy2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.80:4444/?sni=pl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-8521
+hysteria2://p7Q76LzlnS4hIzr1W3staBOnUe_WwSkR@130.49.161.70:443?security=tls&obfs=salamander&obfs-password=rG07s3COMIEvdnQipRyWzx_H_2xygNC3&insecure=0&sni=hy2.aspidnet.xyz#%E2%9A%A1ULTRA-TITAN-SRV-8522
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.149:4444?security=tls&insecure=0&sni=pl2.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-8523
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.96:4444?security=tls&insecure=0&sni=pl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-8524
+hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@13.143.189.142:4444?security=tls&insecure=0&sni=pl3.nexfile.net#%E2%9A%A1ULTRA-TITAN-SRV-8525
+hysteria2://eBTe6Ax2pUts8oMEWoYVDfnSlHfkLffQ@152.32.254.68:5010?security=tls&obfs=salamander&obfs-password=7M4RXPFcQyQEGbkxBPfXo4bilMhCW2U9&insecure=0&sni=nas.aizhzo.com#%E2%9A%A1ULTRA-TITAN-SRV-8526
