@@ -439,7 +439,7 @@ jobs:
           # ═══════════════════════════════════════════════════════
           
           # 💡 برای غیرفعال کردن گیت‌هاب، ابتدای خط زیر # بگذارید
-          fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
+          # fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
           
           # 💡 برای غیرفعال کردن تلگرام، ابتدای خط زیر # بگذارید
           fetch_telegram_channels(TELEGRAM_CHANNELS)
@@ -539,7 +539,7 @@ jobs:
           # ║  ────────────────────────────────────────────────  ║
           # ║  برای غیرفعال کردن تست، این مقدار را false کنید.   ║
           # ╚════════════════════════════════════════════════════╝
-          ENABLE_PING_TEST=true
+          ENABLE_PING_TEST=false
 
           if [ "${ENABLE_PING_TEST:-false}" != "true" ]; then
             echo "⏸️  تست پینگ غیرفعال شد — فایل‌ها دست‌نخورده می‌مانند."
