@@ -273,45 +273,73 @@ jobs:
                   return None
 
               if "@" in parsed.netloc:
-                  user_info = parsed.netloc.rsplit("@", 1)[0]
+                  user_info = parsed.netloc.rsplit("@", 1)[0].strip().lower()
                   netloc = parsed.netloc.rsplit("@", 1)[1]
               else:
                   user_info = ""
                   netloc = parsed.netloc
 
               host, port = split_host_port(netloc)
-              host = host.lower().strip()
+              host = host.lower().strip().rstrip(".")
 
               if is_private_or_invalid_host(host):
                   return None
 
               q = parse_qs(parsed.query, keep_blank_values=False)
 
-              def qv(*keys):
+              def qv_raw(*keys):
                   for k in keys:
-                      v = q.get(k)
-                      if v and v[0]:
-                          return v[0].lower().strip()
+                      kl = k.lower()
+                      for actual, vals in q.items():
+                          if actual.lower() == kl and vals:
+                              v = vals[0]
+                              if v is not None and v != "":
+                                  return v.strip()
                   return ""
+
+              host_param = qv_raw("host").lower().rstrip(".")
+              sni = qv_raw("sni", "serverName", "peer", "server_name").lower().rstrip(".")
+              pbk = qv_raw("pbk", "publicKey", "public_key")
+              sid = qv_raw("sid", "shortId", "short_id")
+              net_type = qv_raw("type", "net").lower()
+              path = qv_raw("path", "serviceName", "service_name")
+              if path == "":
+                  path = "/"
+              security = qv_raw("security").lower()
+              if security == "":
+                  security = "none"
+              flow = qv_raw("flow").lower()
+              mode = qv_raw("mode").lower()
+              alpn = qv_raw("alpn").lower()
+              spx = qv_raw("spx").lower()
+              encryption = qv_raw("encryption").lower()
+              if encryption == "":
+                  encryption = "none"
+              header_type = qv_raw("headerType", "headertype").lower()
+              if header_type == "none":
+                  header_type = ""
+
+              if pbk or sid:
+                  server_id = ("reality", pbk, sid)
+              elif host_param or sni:
+                  server_id = ("host+sni", host_param, sni)
+              else:
+                  server_id = ("ip", host)
 
               return (
                   protocol,
                   user_info,
-                  host,
                   port,
-                  qv("sni", "serverName", "peer", "server_name"),
-                  qv("type", "net"),
-                  qv("path", "serviceName", "service_name"),
-                  qv("host"),
-                  qv("pbk", "publicKey", "public_key"),
-                  qv("sid", "shortId", "short_id"),
-                  qv("flow"),
-                  qv("security"),
-                  qv("fp"),
-                  qv("alpn"),
-                  qv("mode"),
-                  qv("headerType"),
-                  qv("spx"),
+                  server_id,
+                  net_type,
+                  path,
+                  security,
+                  flow,
+                  mode,
+                  alpn,
+                  spx,
+                  encryption,
+                  header_type,
               )
 
 
