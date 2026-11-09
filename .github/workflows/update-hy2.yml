@@ -491,11 +491,9 @@ jobs:
           # ═══════════════════════════════════════════════════════
           #  ●  ۹. اجرای دریافت‌کننده‌ها
           # ═══════════════════════════════════════════════════════
-          
-          # 💡 برای غیرفعال کردن گیت‌هاب، ابتدای خط زیر # بگذارید
-          # fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
-          
-          # 💡 برای غیرفعال کردن تلگرام، ابتدای خط زیر # بگذارید
+
+          fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
+
           fetch_telegram_channels(TELEGRAM_CHANNELS)
 
 
@@ -603,11 +601,11 @@ jobs:
           wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ آماده‌سازی xray-knife ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
 
           # ────────────────────────────────────────────────────────
-          # تست Hy2 (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۱۰ ثانیه‌ای)
+          # تست Hy2 (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۸ ثانیه‌ای)
           # ────────────────────────────────────────────────────────
           if [ -s hy2_filtered.txt ]; then
-            echo "🧪 تست Hy2 (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۱۰ ثانیه‌ای)..."
-            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --mdelay 2000 -t 10 -o hy2_alive.txt || true
+            echo "🧪 تست Hy2 (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۸ ثانیه‌ای)..."
+            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --mdelay 2000 -t 8 -o hy2_alive.txt 2>&1 | tee hy2_delays.log || true
 
             if [ -f hy2_alive.txt ]; then
               sed -i '/^$/d' hy2_alive.txt
@@ -624,11 +622,11 @@ jobs:
           fi
 
           # ────────────────────────────────────────────────────────
-          # تست VLESS/Trojan (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۱۰ ثانیه‌ای)
+          # تست VLESS/Trojan (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۸ ثانیه‌ای)
           # ────────────────────────────────────────────────────────
           if [ -s vless_trojan_filtered.txt ]; then
-            echo "🧪 تست VLESS/Trojan (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۱۰ ثانیه‌ای)..."
-            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --mdelay 2000 -t 10 -o vless_alive.txt || true
+            echo "🧪 تست VLESS/Trojan (استاندارد، پینگ حداکثر ۲ ثانیه، فرصت ۸ ثانیه‌ای)..."
+            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 20 --mdelay 2000 -t 8 -o vless_alive.txt 2>&1 | tee vless_delays.log || true
 
             if [ -f vless_alive.txt ]; then
               sed -i '/^$/d' vless_alive.txt
@@ -656,6 +654,7 @@ jobs:
           from urllib.parse import urlparse, parse_qs, unquote
 
           FULL_TEXT_PROTOCOLS = {"warp", "tuic"}
+          KEEP_PER_GROUP = 2
 
           def split_host_port(netloc):
               if netloc.startswith("["):
@@ -803,12 +802,67 @@ jobs:
                   header_type,
               )
 
-          def dedup_file(path):
+          CFG_RE = re.compile(r"([a-z]+://[^\s,;]+)", re.IGNORECASE)
+          DELAY_PATTERNS = [
+              re.compile(r"\[\s*(\d+)\s*ms\s*\]", re.IGNORECASE),
+              re.compile(r"(\d+)\s*ms\b", re.IGNORECASE),
+              re.compile(r"delay\s*[:=]\s*(\d+)", re.IGNORECASE),
+              re.compile(r"latency\s*[:=]\s*(\d+)", re.IGNORECASE),
+              re.compile(r"ping\s*[:=]\s*(\d+)", re.IGNORECASE),
+          ]
+
+          def extract_delay(text):
+              for pat in DELAY_PATTERNS:
+                  m = pat.search(text)
+                  if m:
+                      try:
+                          return int(m.group(1))
+                      except ValueError:
+                          continue
+              return None
+
+          def parse_delays(log_path):
+              delays = {}
+              if not os.path.exists(log_path):
+                  return delays
+              try:
+                  with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+                      lines = f.readlines()
+              except Exception:
+                  return delays
+
+              current_cfg = None
+              for raw_line in lines:
+                  line = raw_line.strip()
+                  if not line:
+                      continue
+
+                  cfgs = CFG_RE.findall(line)
+                  delay = extract_delay(line)
+
+                  if cfgs:
+                      for raw_cfg in cfgs:
+                          base = raw_cfg.strip().rstrip(",;)]").strip().split("#", 1)[0].strip()
+                          if not base:
+                              continue
+                          if delay is not None:
+                              if base not in delays or delay < delays[base]:
+                                  delays[base] = delay
+                          current_cfg = base
+                      continue
+
+                  if current_cfg and delay is not None:
+                      if current_cfg not in delays or delay < delays[current_cfg]:
+                          delays[current_cfg] = delay
+                      current_cfg = None
+
+              return delays
+
+          def dedup_file(path, delay_log):
               if not os.path.exists(path):
                   return
-              seen = set()
-              out = []
-              dropped_dup = 0
+              delays = parse_delays(delay_log)
+              groups = {}
               with open(path, "r", encoding="utf-8") as f:
                   for line in f:
                       s = line.strip()
@@ -818,17 +872,28 @@ jobs:
                       key = build_dedup_key(base)
                       if key is None:
                           continue
-                      if key in seen:
-                          dropped_dup += 1
-                          continue
-                      seen.add(key)
-                      out.append(s)
+                      delay = delays.get(base, 999999)
+                      groups.setdefault(key, []).append((delay, s))
+
+              out = []
+              total_dropped = 0
+              for key, items in groups.items():
+                  items.sort(key=lambda x: x[0])
+                  for delay, cfg in items[:KEEP_PER_GROUP]:
+                      out.append(cfg)
+                  total_dropped += max(0, len(items) - KEEP_PER_GROUP)
+
               with open(path, "w", encoding="utf-8") as f:
                   f.write("\n".join(out) + ("\n" if out else ""))
-              print(f"🧹 {path}: نگه‌داشته={len(out)} | تکراری={dropped_dup}")
+              print(
+                  f"🧹 {path}: نگه‌داشته={len(out)} | "
+                  f"تکراری={total_dropped} | "
+                  f"گروه‌ها={len(groups)} | "
+                  f"سرعت‌های شناسایی‌شده={len(delays)}"
+              )
 
-          dedup_file("vless_trojan_filtered.txt")
-          dedup_file("hy2_filtered.txt")
+          dedup_file("vless_trojan_filtered.txt", "vless_delays.log")
+          dedup_file("hy2_filtered.txt", "hy2_delays.log")
           PYEOF
 
       # ═══════════════════════════════════════════════════════
