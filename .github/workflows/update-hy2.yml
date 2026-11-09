@@ -59,7 +59,7 @@ jobs:
           import sys
           import time
           import requests
-          from urllib.parse import urlparse, parse_qs, quote
+          from urllib.parse import urlparse, parse_qs, quote, unquote
           from requests.adapters import HTTPAdapter
           try:
               from urllib3.util.retry import Retry
@@ -272,16 +272,21 @@ jobs:
               if not parsed.netloc:
                   return None
 
-              if "@" in parsed.netloc:
-                  user_info = parsed.netloc.rsplit("@", 1)[0].strip().lower()
-                  netloc = parsed.netloc.rsplit("@", 1)[1]
-              else:
-                  user_info = ""
-                  netloc = parsed.netloc
+              if "@" not in parsed.netloc:
+                  return None
+
+              user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
+              user_info = unquote(user_info_raw).strip().lower()
+              if not user_info:
+                  return None
+
+              if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.", user_info):
+                  return None
+              if re.match(r"^[0-9a-f]{32}\.[0-9a-z]", user_info):
+                  return None
 
               host, port = split_host_port(netloc)
-              host = host.lower().strip().rstrip(".")
-
+              host = unquote(host).strip("[]").lower().rstrip(".")
               if is_private_or_invalid_host(host):
                   return None
 
@@ -298,46 +303,67 @@ jobs:
                   return ""
 
               host_param = qv_raw("host").lower().rstrip(".")
+              if "/" in host_param or "?" in host_param:
+                  host_param = ""
+
               sni = qv_raw("sni", "serverName", "peer", "server_name").lower().rstrip(".")
               pbk = qv_raw("pbk", "publicKey", "public_key")
               sid = qv_raw("sid", "shortId", "short_id")
-              net_type = qv_raw("type", "net").lower()
+              net_type = qv_raw("type", "net").lower() or "tcp"
               path = qv_raw("path", "serviceName", "service_name")
-              if path == "":
-                  path = "/"
-              security = qv_raw("security").lower()
-              if security == "":
-                  security = "none"
+              security = qv_raw("security").lower() or "none"
               flow = qv_raw("flow").lower()
               mode = qv_raw("mode").lower()
               alpn = qv_raw("alpn").lower()
-              spx = qv_raw("spx").lower()
-              encryption = qv_raw("encryption").lower()
-              if encryption == "":
-                  encryption = "none"
+              encryption = qv_raw("encryption").lower() or "none"
               header_type = qv_raw("headerType", "headertype").lower()
               if header_type == "none":
                   header_type = ""
 
+              if security in ("", "none") and encryption in ("", "none"):
+                  return None
+
+              if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk):
+                  return None
+
+              if not path:
+                  path = "/"
+              elif "?" in path:
+                  base, query = path.split("?", 1)
+                  q_low = query.lower()
+                  branding = (
+                      "telegram", "planb_net", "marambashi", "tootffarangi",
+                      "v2ray_confiig", "evay_vpn", "mtmvpn", "bored_vpn",
+                      "iranping24", "mehrosaboran", "tehranargo", "dailyconfigs",
+                      "i10vpn", "b2hub", "amiraxvpn", "atovpn", "spiddy",
+                      "javidnamaniran", "arsalanvpn", "v2raxx", "mitivpn",
+                  )
+                  is_branding = (
+                      not q_low
+                      or q_low.startswith("ed=")
+                      or any(t in q_low for t in branding)
+                  )
+                  path = base if is_branding else (base + "?" + query)
+
               if pbk or sid:
-                  server_id = ("reality", pbk, sid)
-              elif host_param or sni:
-                  server_id = ("host+sni", host_param, sni)
+                  identity = ("reality", pbk, sid, sni, flow)
+              elif host_param:
+                  identity = ("host", host_param, path, net_type, mode, alpn)
+              elif sni:
+                  identity = ("sni", sni, path, net_type, mode, alpn)
               else:
-                  server_id = ("ip", host)
+                  identity = ("uuid_only",)
 
               return (
                   protocol,
                   user_info,
                   port,
-                  server_id,
+                  identity,
+                  security,
                   net_type,
                   path,
-                  security,
-                  flow,
                   mode,
                   alpn,
-                  spx,
                   encryption,
                   header_type,
               )
@@ -476,7 +502,7 @@ jobs:
           # ═══════════════════════════════════════════════════════
           #  ●  ۱۰. پالایش و یکتاسازی
           # ═══════════════════════════════════════════════════════
-          print("\n🔍 پالایش آغاز شد (حالت تحلیل — dedup غیرفعال).")
+          print("\n🔍 پالایش و یکتاسازی آغاز شد.")
 
           def clean_and_dedup(raw_list, label):
               out = []
@@ -505,9 +531,6 @@ jobs:
                       dropped_invalid += 1
                       continue
 
-                  # ═══════════════════════════════════════════════════════
-                  #  ●  حالت تحلیل: dedup غیرفعال — همه کانفیگ‌ها ذخیره می‌شن
-                  # ═══════════════════════════════════════════════════════
                   out.append(base)
 
               print(
@@ -521,8 +544,8 @@ jobs:
           cleaned_hy2 = clean_and_dedup(raw_hy2_items, "Hy2")
           cleaned_vless = clean_and_dedup(raw_vless_trojan_items, "VLESS/Other")
 
-          print(f"✨ تعداد خام Hy2: {len(cleaned_hy2)}")
-          print(f"✨ تعداد خام سایر: {len(cleaned_vless)}")
+          print(f"✨ تعداد یکتای Hy2: {len(cleaned_hy2)}")
+          print(f"✨ تعداد یکتای سایر: {len(cleaned_vless)}")
 
 
           # ═══════════════════════════════════════════════════════
@@ -559,9 +582,9 @@ jobs:
           # ╔════════════════════════════════════════════════════╗
           # ║  🔘  کلید فعال/غیرفعال کردن تست پینگ           ║
           # ║  ────────────────────────────────────────────────  ║
-          # ║  برای تحلیل: false — که همه کانفیگ‌ها بمونن      ║
+          # ║  برای غیرفعال کردن تست، این مقدار را false کنید.   ║
           # ╚════════════════════════════════════════════════════╝
-          ENABLE_PING_TEST=false
+          ENABLE_PING_TEST=true
 
           if [ "${ENABLE_PING_TEST:-false}" != "true" ]; then
             echo "⏸️  تست پینگ غیرفعال شد — فایل‌ها دست‌نخورده می‌مانند."
@@ -620,6 +643,193 @@ jobs:
           else
             echo "⚠️ فایل vless_trojan_filtered.txt خالی است — از تست VLESS عبور شد."
           fi
+
+      # ═══════════════════════════════════════════════════════
+      #  ●  حذف تکراری‌های واقعی پس از تست زنده
+      # ═══════════════════════════════════════════════════════
+      - name: Deduplicate After Live Test
+        run: |
+          python - << 'PYEOF'
+          import os
+          import re
+          import ipaddress
+          from urllib.parse import urlparse, parse_qs, unquote
+
+          FULL_TEXT_PROTOCOLS = {"warp", "tuic"}
+
+          def split_host_port(netloc):
+              if netloc.startswith("["):
+                  end = netloc.find("]")
+                  if end != -1:
+                      host = netloc[1:end]
+                      port = netloc[end + 1:].lstrip(":") or "443"
+                      return host, port
+              if ":" in netloc:
+                  host, port = netloc.rsplit(":", 1)
+                  return host, (port or "443")
+              return netloc, "443"
+
+          def is_private_or_invalid_host(host):
+              host = (host or "").strip("[]").strip().lower()
+              if not host:
+                  return True
+              if host in {"localhost", "0.0.0.0", "::", "::1"}:
+                  return True
+              if host.endswith(".local") or host.endswith(".localhost"):
+                  return True
+              try:
+                  ip = ipaddress.ip_address(host)
+              except ValueError:
+                  return False
+              return (
+                  ip.is_private or ip.is_loopback or ip.is_link_local
+                  or ip.is_multicast or ip.is_reserved or ip.is_unspecified
+              )
+
+          def build_dedup_key(line):
+              try:
+                  parsed = urlparse(line)
+              except Exception:
+                  return None
+
+              protocol = (parsed.scheme or "").lower()
+              if not protocol:
+                  return None
+
+              if protocol in {"hy2", "hysteria", "hysteria2"}:
+                  protocol = "hysteria2"
+
+              base_config = line.split("#", 1)[0].strip()
+
+              if protocol in FULL_TEXT_PROTOCOLS:
+                  return (protocol, base_config)
+
+              if not parsed.netloc:
+                  return None
+
+              if "@" not in parsed.netloc:
+                  return None
+
+              user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
+              user_info = unquote(user_info_raw).strip().lower()
+              if not user_info:
+                  return None
+
+              if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.", user_info):
+                  return None
+              if re.match(r"^[0-9a-f]{32}\.[0-9a-z]", user_info):
+                  return None
+
+              host, port = split_host_port(netloc)
+              host = unquote(host).strip("[]").lower().rstrip(".")
+              if is_private_or_invalid_host(host):
+                  return None
+
+              q = parse_qs(parsed.query, keep_blank_values=False)
+
+              def qv_raw(*keys):
+                  for k in keys:
+                      kl = k.lower()
+                      for actual, vals in q.items():
+                          if actual.lower() == kl and vals:
+                              v = vals[0]
+                              if v is not None and v != "":
+                                  return v.strip()
+                  return ""
+
+              host_param = qv_raw("host").lower().rstrip(".")
+              if "/" in host_param or "?" in host_param:
+                  host_param = ""
+
+              sni = qv_raw("sni", "serverName", "peer", "server_name").lower().rstrip(".")
+              pbk = qv_raw("pbk", "publicKey", "public_key")
+              sid = qv_raw("sid", "shortId", "short_id")
+              net_type = qv_raw("type", "net").lower() or "tcp"
+              path = qv_raw("path", "serviceName", "service_name")
+              security = qv_raw("security").lower() or "none"
+              flow = qv_raw("flow").lower()
+              mode = qv_raw("mode").lower()
+              alpn = qv_raw("alpn").lower()
+              encryption = qv_raw("encryption").lower() or "none"
+              header_type = qv_raw("headerType", "headertype").lower()
+              if header_type == "none":
+                  header_type = ""
+
+              if security in ("", "none") and encryption in ("", "none"):
+                  return None
+
+              if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk):
+                  return None
+
+              if not path:
+                  path = "/"
+              elif "?" in path:
+                  base, query = path.split("?", 1)
+                  q_low = query.lower()
+                  branding = (
+                      "telegram", "planb_net", "marambashi", "tootffarangi",
+                      "v2ray_confiig", "evay_vpn", "mtmvpn", "bored_vpn",
+                      "iranping24", "mehrosaboran", "tehranargo", "dailyconfigs",
+                      "i10vpn", "b2hub", "amiraxvpn", "atovpn", "spiddy",
+                      "javidnamaniran", "arsalanvpn", "v2raxx", "mitivpn",
+                  )
+                  is_branding = (
+                      not q_low
+                      or q_low.startswith("ed=")
+                      or any(t in q_low for t in branding)
+                  )
+                  path = base if is_branding else (base + "?" + query)
+
+              if pbk or sid:
+                  identity = ("reality", pbk, sid, sni, flow)
+              elif host_param:
+                  identity = ("host", host_param, path, net_type, mode, alpn)
+              elif sni:
+                  identity = ("sni", sni, path, net_type, mode, alpn)
+              else:
+                  identity = ("uuid_only",)
+
+              return (
+                  protocol,
+                  user_info,
+                  port,
+                  identity,
+                  security,
+                  net_type,
+                  path,
+                  mode,
+                  alpn,
+                  encryption,
+                  header_type,
+              )
+
+          def dedup_file(path):
+              if not os.path.exists(path):
+                  return
+              seen = set()
+              out = []
+              dropped_dup = 0
+              with open(path, "r", encoding="utf-8") as f:
+                  for line in f:
+                      s = line.strip()
+                      if not s:
+                          continue
+                      base = s.split("#", 1)[0].strip()
+                      key = build_dedup_key(base)
+                      if key is None:
+                          continue
+                      if key in seen:
+                          dropped_dup += 1
+                          continue
+                      seen.add(key)
+                      out.append(s)
+              with open(path, "w", encoding="utf-8") as f:
+                  f.write("\n".join(out) + ("\n" if out else ""))
+              print(f"🧹 {path}: نگه‌داشته={len(out)} | تکراری={dropped_dup}")
+
+          dedup_file("vless_trojan_filtered.txt")
+          dedup_file("hy2_filtered.txt")
+          PYEOF
 
       # ═══════════════════════════════════════════════════════
       #  ●  شماره‌گذاری نهایی و ذخیره شمارنده
