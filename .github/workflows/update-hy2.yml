@@ -476,15 +476,12 @@ jobs:
           # ═══════════════════════════════════════════════════════
           #  ●  ۱۰. پالایش و یکتاسازی
           # ═══════════════════════════════════════════════════════
-          print("\n🔍 پالایش و یکتاسازی آغاز شد.")
-
-          seen_keys = set()
+          print("\n🔍 پالایش آغاز شد (حالت تحلیل — dedup غیرفعال).")
 
           def clean_and_dedup(raw_list, label):
               out = []
               dropped_unsafe = 0
               dropped_invalid = 0
-              dropped_dup = 0
               dropped_vmess = 0
 
               for line in raw_list:
@@ -508,18 +505,15 @@ jobs:
                       dropped_invalid += 1
                       continue
 
-                  if key in seen_keys:
-                      dropped_dup += 1
-                      continue
-
-                  seen_keys.add(key)
+                  # ═══════════════════════════════════════════════════════
+                  #  ●  حالت تحلیل: dedup غیرفعال — همه کانفیگ‌ها ذخیره می‌شن
+                  # ═══════════════════════════════════════════════════════
                   out.append(base)
 
               print(
                   f"  • {label}: نگه‌داشته={len(out)} | "
                   f"امنیتی={dropped_unsafe} | "
                   f"نامعتبر={dropped_invalid} | "
-                  f"تکراری={dropped_dup} | "
                   f"vmess(drop)={dropped_vmess}"
               )
               return out
@@ -527,8 +521,8 @@ jobs:
           cleaned_hy2 = clean_and_dedup(raw_hy2_items, "Hy2")
           cleaned_vless = clean_and_dedup(raw_vless_trojan_items, "VLESS/Other")
 
-          print(f"✨ تعداد یکتای Hy2: {len(cleaned_hy2)}")
-          print(f"✨ تعداد یکتای سایر: {len(cleaned_vless)}")
+          print(f"✨ تعداد خام Hy2: {len(cleaned_hy2)}")
+          print(f"✨ تعداد خام سایر: {len(cleaned_vless)}")
 
 
           # ═══════════════════════════════════════════════════════
@@ -565,9 +559,9 @@ jobs:
           # ╔════════════════════════════════════════════════════╗
           # ║  🔘  کلید فعال/غیرفعال کردن تست پینگ           ║
           # ║  ────────────────────────────────────────────────  ║
-          # ║  برای غیرفعال کردن تست، این مقدار را false کنید.   ║
+          # ║  برای تحلیل: false — که همه کانفیگ‌ها بمونن      ║
           # ╚════════════════════════════════════════════════════╝
-          ENABLE_PING_TEST=true
+          ENABLE_PING_TEST=false
 
           if [ "${ENABLE_PING_TEST:-false}" != "true" ]; then
             echo "⏸️  تست پینگ غیرفعال شد — فایل‌ها دست‌نخورده می‌مانند."
