@@ -1,2 +1,6 @@
-hysteria2://ba3aeb91-2ed0-45d3-8dcf-81e5ed45168b@89.105.218.106:8443/?sni=speedtestmark.com#%E2%9A%A1ULTRA-TITAN-SRV-29233
-hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@177.202.75.56:443/?sni=fi1.obxodvpn.us#%E2%9A%A1ULTRA-TITAN-SRV-29234
+hysteria2://Telegram%3Avpnjey@179.61.138.145:36264?security=tls&obfs=salamander&obfs-password=Telegram%40vpnjey&insecure=0&sni=de2.jey.cc.cd#%E2%9A%A1ULTRA-TITAN-SRV-30363
+hysteria2://h05ff7mbgbj6dhwy@vip.trapxan.ir:2098?sni=vip.trapxan.ir&obfs=salamander&obfs-password=7922smqtd5qm70fu#%E2%9A%A1ULTRA-TITAN-SRV-30364
+hysteria2://ba3aeb91-2ed0-45d3-8dcf-81e5ed45168b@89.105.218.106:8443/?sni=speedtestmark.com#%E2%9A%A1ULTRA-TITAN-SRV-30365
+hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@177.202.75.56:443/?sni=fi1.obxodvpn.us#%E2%9A%A1ULTRA-TITAN-SRV-30366
+hysteria2://68a67906-5b37-4779-a6cc-58a1655f18b4@185.121.179.146:5443/?sni=hsale.locallynet.org#%E2%9A%A1ULTRA-TITAN-SRV-30367
+hysteria2://5ictxgawam84vgrp@109.70.74.213:2098?security=tls&obfs=salamander&obfs-password=7922smqtd5qm70fu&insecure=0&sni=109.70.74.213#%E2%9A%A1ULTRA-TITAN-SRV-30368
