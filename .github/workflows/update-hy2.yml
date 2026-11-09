@@ -504,9 +504,11 @@ jobs:
 
           def clean_and_dedup(raw_list, label):
               out = []
+              seen_exact = set()
               dropped_unsafe = 0
               dropped_invalid = 0
               dropped_vmess = 0
+              dropped_dup = 0
 
               for line in raw_list:
                   if not line:
@@ -529,12 +531,18 @@ jobs:
                       dropped_invalid += 1
                       continue
 
+                  if base in seen_exact:
+                      dropped_dup += 1
+                      continue
+                  
+                  seen_exact.add(base)
                   out.append(base)
 
               print(
                   f"  • {label}: نگه‌داشته={len(out)} | "
                   f"امنیتی={dropped_unsafe} | "
                   f"نامعتبر={dropped_invalid} | "
+                  f"تکراری={dropped_dup} | "
                   f"vmess(drop)={dropped_vmess}"
               )
               return out
