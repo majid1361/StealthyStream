@@ -1,4 +1,2 @@
-hysteria2://ba3aeb91-2ed0-45d3-8dcf-81e5ed45168b@89.105.218.106:8443/?sni=speedtestmark.com#%E2%9A%A1ULTRA-TITAN-SRV-29140
-hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@177.202.75.56:443/?sni=fi1.obxodvpn.us#%E2%9A%A1ULTRA-TITAN-SRV-29141
-hysteria2://eBTe6Ax2pUts8oMEWoYVDfnSlHfkLffQ@152.32.254.68:5010?security=tls&obfs=salamander&obfs-password=7M4RXPFcQyQEGbkxBPfXo4bilMhCW2U9&insecure=0&sni=nas.aizhzo.com#%E2%9A%A1ULTRA-TITAN-SRV-29142
-hysteria2://eBTe6Ax2pUts8oMEWoYVDfnSlHfkLffQ@152.32.254.68:5010?downmbps=0&insecure=0&obfs=salamander&obfs-password=7M4RXPFcQyQEGbkxBPfXo4bilMhCW2U9&sni=nas.aizhzo.com&upmbps=0#%E2%9A%A1ULTRA-TITAN-SRV-29143
+hysteria2://ba3aeb91-2ed0-45d3-8dcf-81e5ed45168b@89.105.218.106:8443/?sni=speedtestmark.com#%E2%9A%A1ULTRA-TITAN-SRV-29233
+hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@177.202.75.56:443/?sni=fi1.obxodvpn.us#%E2%9A%A1ULTRA-TITAN-SRV-29234
