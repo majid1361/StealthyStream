@@ -776,11 +776,11 @@ jobs:
           wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ آماده‌سازی xray-knife ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
 
           # ────────────────────────────────────────────────────────
-          # تست Hy2 (سخت‌گیرانه: پینگ حداکثر ۱.۵ ثانیه، ۵۰ ترد همزمان)
+          # تست Hy2 (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۵۰ ترد همزمان)
           # ────────────────────────────────────────────────────────
           if [ -s hy2_filtered.txt ]; then
-            echo "🧪 تست Hy2 (سخت‌گیرانه: پینگ حداکثر ۱.۵ ثانیه، ۵۰ ترد همزمان)..."
-            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 3000 --prescan-workers 50 --mdelay 1500 -t 50 -o hy2_alive.txt 2>&1 | tee hy2_delays.log || true
+            echo "🧪 تست Hy2 (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۵۰ ترد همزمان)..."
+            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 50 -o hy2_alive.txt 2>&1 | tee hy2_delays.log || true
 
             if [ -f hy2_alive.txt ]; then
               sed -i '/^$/d' hy2_alive.txt
@@ -797,11 +797,11 @@ jobs:
           fi
 
           # ────────────────────────────────────────────────────────
-          # تست VLESS/Trojan (سخت‌گیرانه: پینگ حداکثر ۱.۵ ثانیه، ۵۰ ترد همزمان)
+          # تست VLESS/Trojan (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۵۰ ترد همزمان)
           # ────────────────────────────────────────────────────────
           if [ -s vless_trojan_filtered.txt ]; then
-            echo "🧪 تست VLESS/Trojan (سخت‌گیرانه: پینگ حداکثر ۱.۵ ثانیه، ۵۰ ترد همزمان)..."
-            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 3000 --prescan-workers 50 --mdelay 1500 -t 50 -o vless_alive.txt 2>&1 | tee vless_delays.log || true
+            echo "🧪 تست VLESS/Trojan (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۵۰ ترد همزمان)..."
+            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 50 -o vless_alive.txt 2>&1 | tee vless_delays.log || true
 
             if [ -f vless_alive.txt ]; then
               sed -i '/^$/d' vless_alive.txt
