@@ -578,6 +578,100 @@ jobs:
           PYEOF
 
       # ═══════════════════════════════════════════════════════
+      #  ●  تزریق آی‌پی‌های تمیز CDN (IP Hopping)
+      # ═══════════════════════════════════════════════════════
+      - name: Inject Clean CDN IPs
+        run: |
+          # ╔════════════════════════════════════════════════════╗
+          # ║  🔘  کلید فعال/غیرفعال کردن تغییر آی‌پی           ║
+          # ║  ────────────────────────────────────────────────  ║
+          # ║  برای غیرفعال کردن، این مقدار را false کنید.       ║
+          # ╚════════════════════════════════════════════════════╝
+          ENABLE_IP_HOPPING=true
+
+          if [ "${ENABLE_IP_HOPPING:-false}" != "true" ]; then
+            echo "⏸️ تغییر آی‌پی غیرفعال شد — کانفیگ‌ها بدون تغییر می‌مانند."
+            exit 0
+          fi
+
+          python - << 'PYEOF'
+          import os
+          import re
+          import random
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  تنظیمات رنج‌های هدف (اینجا رنج جدید اضافه کنید)
+          # ═══════════════════════════════════════════════════════
+          # فقط دو بخش اول رنج را اینجا بنویسید. 
+          # کد به صورت خودکار عدد سوم و چهارم را رندم می‌کند.
+          TARGET_PREFIXES = [
+              "199.232.",       # رنج اول (Fastly)
+              "146.75.",        # رنج دوم (Fastly)
+              
+              # ⬇️ رنج جدید را دقیقاً با همین فرمت اضافه کنید (مثلاً):
+              # "151.101.",
+          ]
+
+          IPS_PER_CONFIG = 5
+          MIN_OCTET_3 = 1
+          MAX_OCTET_3 = 254
+          MIN_OCTET_4 = 10
+          MAX_OCTET_4 = 200
+
+          def generate_random_ip(prefix):
+              parts = prefix.strip('.').split('.')
+              if len(parts) >= 2:
+                  return f"{parts[0]}.{parts[1]}.{random.randint(MIN_OCTET_3, MAX_OCTET_3)}.{random.randint(MIN_OCTET_4, MAX_OCTET_4)}"
+              return prefix
+
+          def process_file(filename):
+              if not os.path.exists(filename):
+                  return
+              
+              with open(filename, "r", encoding="utf-8") as f:
+                  lines = [l.strip() for l in f if l.strip()]
+
+              new_lines = []
+              injected = 0
+              untouched = 0
+
+              for line in lines:
+                  if not line.lower().startswith(("trojan://", "vless://")):
+                      new_lines.append(line)
+                      untouched += 1
+                      continue
+
+                  try:
+                      match = re.match(r'^([a-z]+://[^@]+@)([^:/?#]+)(.*)$', line, re.IGNORECASE)
+                      if not match:
+                          new_lines.append(line)
+                          untouched += 1
+                          continue
+                      
+                      prefix, original_host, suffix = match.groups()
+                      is_target = any(original_host.startswith(t) for t in TARGET_PREFIXES)
+
+                      if is_target:
+                          for _ in range(IPS_PER_CONFIG):
+                              matched = next(t for t in TARGET_PREFIXES if original_host.startswith(t))
+                              new_lines.append(f"{prefix}{generate_random_ip(matched)}{suffix}")
+                          injected += 1
+                      else:
+                          new_lines.append(line)
+                          untouched += 1
+                  except Exception:
+                      new_lines.append(line)
+                      untouched += 1
+
+              with open(filename, "w", encoding="utf-8") as f:
+                  f.write("\n".join(new_lines) + "\n")
+              
+              print(f"✅ {filename}: {injected} کانفیگ تغییر کرد (تولید {injected * IPS_PER_CONFIG}) | {untouched} دست‌نخورده.")
+
+          process_file("vless_trojan_filtered.txt")
+          PYEOF
+
+      # ═══════════════════════════════════════════════════════
       #  ●  تست زنده و حذف سرورهای مرده با xray-knife
       # ═══════════════════════════════════════════════════════
       - name: Live Test and Filter Dead Servers
