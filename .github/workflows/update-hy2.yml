@@ -578,7 +578,7 @@ jobs:
           PYEOF
 
       # ═══════════════════════════════════════════════════════
-      #  ●  تزریق آی‌پی‌های تمیز CDN (IP Hopping)
+      #  ●  تزریق آی‌پی‌های تمیز CDN (IP Hopping & Cloudflare Custom)
       # ═══════════════════════════════════════════════════════
       - name: Inject Clean CDN IPs
         run: |
@@ -600,16 +600,32 @@ jobs:
           import random
 
           # ═══════════════════════════════════════════════════════
-          #  ●  تنظیمات رنج‌های هدف (اینجا رنج جدید اضافه کنید)
+          #  ●  تنظیمات Fastly (رنج‌هایی که عدد سوم و چهارم رندم میشه)
           # ═══════════════════════════════════════════════════════
-          # فقط دو بخش اول رنج را اینجا بنویسید. 
-          # کد به صورت خودکار عدد سوم و چهارم را رندم می‌کند.
-          TARGET_PREFIXES = [
-              "199.232.",       # رنج اول (Fastly)
-              "146.75.",        # رنج دوم (Fastly)
-              
-              # ⬇️ رنج جدید را دقیقاً با همین فرمت اضافه کنید (مثلاً):
-              # "151.101.",
+          FASTLY_PREFIXES = [
+              "199.232.",       # رنج Fastly 1
+              "146.75.",        # رنج Fastly 2
+          ]
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  تنظیمات Cloudflare (تشخیص کانفیگ‌های کلودفلر)
+          # ═══════════════════════════════════════════════════════
+          CLOUDFLARE_PREFIXES = [
+              "104.",
+              "172.64.", "172.65.", "172.66.", "172.67.", "172.68.", "172.69.", "172.70.", "172.71.",
+              "162.158.", "162.159.",
+              "188.114.",
+          ]
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  لیست آی‌پی‌های تمیز کلودفلر (اینجا آی‌پی‌های خودت رو بذار)
+          # ═══════════════════════════════════════════════════════
+          CLEAN_CLOUDFLARE_IPS = [
+              # ⬇️ آی‌پی‌های تمیز کلودفلر که پیدا کردی رو اینجا بنویس (با کاما جدا کن)
+              "104.16.1.1", 
+              "104.17.2.2",
+              "104.18.3.3",
+              # "104.x.x.x",
           ]
 
           IPS_PER_CONFIG = 5
@@ -618,7 +634,7 @@ jobs:
           MIN_OCTET_4 = 10
           MAX_OCTET_4 = 200
 
-          def generate_random_ip(prefix):
+          def generate_random_fastly_ip(prefix):
               parts = prefix.strip('.').split('.')
               if len(parts) >= 2:
                   return f"{parts[0]}.{parts[1]}.{random.randint(MIN_OCTET_3, MAX_OCTET_3)}.{random.randint(MIN_OCTET_4, MAX_OCTET_4)}"
@@ -632,7 +648,8 @@ jobs:
                   lines = [l.strip() for l in f if l.strip()]
 
               new_lines = []
-              injected = 0
+              fastly_injected = 0
+              cf_injected = 0
               untouched = 0
 
               for line in lines:
@@ -649,14 +666,24 @@ jobs:
                           continue
                       
                       prefix, original_host, suffix = match.groups()
-                      is_target = any(original_host.startswith(t) for t in TARGET_PREFIXES)
+                      
+                      is_fastly = any(original_host.startswith(t) for t in FASTLY_PREFIXES)
+                      is_cloudflare = any(original_host.startswith(t) for t in CLOUDFLARE_PREFIXES)
 
-                      if is_target:
+                      if is_fastly:
+                          # برای Fastly: تولید رندم بر اساس رنج
                           for _ in range(IPS_PER_CONFIG):
-                              matched = next(t for t in TARGET_PREFIXES if original_host.startswith(t))
-                              new_lines.append(f"{prefix}{generate_random_ip(matched)}{suffix}")
-                          injected += 1
+                              matched = next(t for t in FASTLY_PREFIXES if original_host.startswith(t))
+                              new_lines.append(f"{prefix}{generate_random_fastly_ip(matched)}{suffix}")
+                          fastly_injected += 1
+                      elif is_cloudflare and CLEAN_CLOUDFLARE_IPS:
+                          # برای کلودفلر: انتخاب رندم از لیست تمیز
+                          for _ in range(IPS_PER_CONFIG):
+                              clean_ip = random.choice(CLEAN_CLOUDFLARE_IPS)
+                              new_lines.append(f"{prefix}{clean_ip}{suffix}")
+                          cf_injected += 1
                       else:
+                          # بقیه کانفیگ‌ها: دست نزن
                           new_lines.append(line)
                           untouched += 1
                   except Exception:
@@ -666,7 +693,10 @@ jobs:
               with open(filename, "w", encoding="utf-8") as f:
                   f.write("\n".join(new_lines) + "\n")
               
-              print(f"✅ {filename}: {injected} کانفیگ تغییر کرد (تولید {injected * IPS_PER_CONFIG}) | {untouched} دست‌نخورده.")
+              print(f"✅ {filename}:")
+              print(f"   - {fastly_injected} کانفیگ Fastly تغییر کرد (رندم).")
+              print(f"   - {cf_injected} کانفیگ Cloudflare تغییر کرد (از لیست تمیز).")
+              print(f"   - {untouched} کانفیگ دست‌نخورده ماند.")
 
           process_file("vless_trojan_filtered.txt")
           PYEOF
