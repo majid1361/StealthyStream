@@ -490,7 +490,7 @@ jobs:
           #  ●  ۹. اجرای دریافت‌کننده‌ها
           # ═══════════════════════════════════════════════════════
 
-          # fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
+          fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
 
           fetch_telegram_channels(TELEGRAM_CHANNELS)
 
