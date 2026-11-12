@@ -829,7 +829,7 @@ jobs:
           from urllib.parse import urlparse, parse_qs, unquote
 
           FULL_TEXT_PROTOCOLS = {"warp", "tuic"}
-          KEEP_PER_GROUP = 1
+          KEEP_PER_GROUP = 2
 
           def split_host_port(netloc):
               if netloc.startswith("["):
