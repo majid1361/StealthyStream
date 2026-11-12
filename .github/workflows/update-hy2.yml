@@ -769,46 +769,36 @@ jobs:
           wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ آماده‌سازی xray-knife ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
 
           # ────────────────────────────────────────────────────────
-          # تست Hy2 (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۵۰ ترد همزمان)
+          # تست هوشمند و بهینه (با ۲۰ ترد برای جلوگیری از کرش UDP)
           # ────────────────────────────────────────────────────────
-          if [ -s hy2_filtered.txt ]; then
-            echo "🧪 تست Hy2 (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۵۰ ترد همزمان)..."
-            ./xray-knife http -f hy2_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 50 -o hy2_alive.txt 2>&1 | tee hy2_delays.log || true
+          TARGETS=("hy2" "vless_trojan")
 
-            if [ -f hy2_alive.txt ]; then
-              sed -i '/^$/d' hy2_alive.txt
+          for TARGET in "${TARGETS[@]}"; do
+            INPUT_FILE="${TARGET}_filtered.txt"
+            OUTPUT_FILE="${TARGET}_alive.txt"
+            LOG_FILE="${TARGET}_delays.log"
+
+            if [ -s "$INPUT_FILE" ]; then
+              echo "🧪 تست $TARGET (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۲۰ ترد همزمان)..."
               
-              if [ -s hy2_alive.txt ]; then
-                mv hy2_alive.txt hy2_filtered.txt
-                echo "✅ hy2_filtered.txt با نتایج تست زنده به‌روز شد."
+              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 20 -o "$OUTPUT_FILE" 2>&1 | tee "$LOG_FILE" || true
+
+              if [ -s "$OUTPUT_FILE" ]; then
+                sed -i '/^$/d' "$OUTPUT_FILE"
+                
+                if [ -s "$OUTPUT_FILE" ]; then
+                  mv "$OUTPUT_FILE" "$INPUT_FILE"
+                  echo "✅ $INPUT_FILE با نتایج تست زنده به‌روز شد."
+                else
+                  echo "🛡️ $OUTPUT_FILE خالی است — فایل قبلی $TARGET حفظ شد."
+                fi
               else
-                echo "🛡️ hy2_alive.txt خالی است — فایل قبلی Hy2 حفظ شد."
+                echo "🛡️ $OUTPUT_FILE ساخته نشد یا خالی است — فایل قبلی $TARGET حفظ شد."
               fi
+            else
+              echo "⚠️ فایل $INPUT_FILE خالی است — از تست $TARGET عبور شد."
             fi
-          else
-            echo "⚠️ فایل hy2_filtered.txt خالی است — از تست Hy2 عبور شد."
-          fi
-
-          # ────────────────────────────────────────────────────────
-          # تست VLESS/Trojan (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۵۰ ترد همزمان)
-          # ────────────────────────────────────────────────────────
-          if [ -s vless_trojan_filtered.txt ]; then
-            echo "🧪 تست VLESS/Trojan (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۵۰ ترد همزمان)..."
-            ./xray-knife http -f vless_trojan_filtered.txt --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 50 -o vless_alive.txt 2>&1 | tee vless_delays.log || true
-
-            if [ -f vless_alive.txt ]; then
-              sed -i '/^$/d' vless_alive.txt
-
-              if [ -s vless_alive.txt ]; then
-                mv vless_alive.txt vless_trojan_filtered.txt
-                echo "✅ vless_trojan_filtered.txt با نتایج تست زنده به‌روز شد."
-              else
-                echo "🛡️ vless_alive.txt خالی است — فایل قبلی VLESS حفظ شد."
-              fi
-            fi
-          else
-            echo "⚠️ فایل vless_trojan_filtered.txt خالی است — از تست VLESS عبور شد."
-          fi
+          done
 
       # ═══════════════════════════════════════════════════════
       #  ●  حذف تکراری‌های واقعی پس از تست زنده
