@@ -490,7 +490,7 @@ jobs:
           #  ●  ۹. اجرای دریافت‌کننده‌ها
           # ═══════════════════════════════════════════════════════
 
-          fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
+          # fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
 
           fetch_telegram_channels(TELEGRAM_CHANNELS)
 
@@ -578,15 +578,10 @@ jobs:
           PYEOF
 
       # ═══════════════════════════════════════════════════════
-      #  ●  تزریق آی‌پی‌های تمیز CDN (IP Hopping & Cloudflare Custom)
+      #  ●  تزریق آی‌پی‌های تمیز CDN (Fastly + Cloudflare)
       # ═══════════════════════════════════════════════════════
       - name: Inject Clean CDN IPs
         run: |
-          # ╔════════════════════════════════════════════════════╗
-          # ║  🔘  کلید فعال/غیرفعال کردن تغییر آی‌پی           ║
-          # ║  ────────────────────────────────────────────────  ║
-          # ║  برای غیرفعال کردن، این مقدار را false کنید.       ║
-          # ╚════════════════════════════════════════════════════╝
           ENABLE_IP_HOPPING=true
 
           if [ "${ENABLE_IP_HOPPING:-false}" != "true" ]; then
@@ -598,52 +593,111 @@ jobs:
           import os
           import re
           import random
+          import ipaddress
 
           # ═══════════════════════════════════════════════════════
-          #  ●  تنظیمات Fastly (رنج‌هایی که عدد سوم و چهارم رندم میشه)
+          #  ●  پیشوندهای تمیز Fastly برای جایگزینی
           # ═══════════════════════════════════════════════════════
-          FASTLY_PREFIXES = [
-              "199.232.",       # رنج Fastly 1
-              "146.75.",        # رنج Fastly 2
+          TARGET_FASTLY_PREFIXES = [
+              "199.232.",
+              "146.75.",
           ]
 
           # ═══════════════════════════════════════════════════════
-          #  ●  تنظیمات Cloudflare (تشخیص کانفیگ‌های کلودفلر)
-          # ═══════════════════════════════════════════════════════
-          CLOUDFLARE_PREFIXES = [
-              "104.",
-              "172.64.", "172.65.", "172.66.", "172.67.", "172.68.", "172.69.", "172.70.", "172.71.",
-              "162.158.", "162.159.",
-              "188.114.",
-          ]
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  لیست آی‌پی‌های تمیز کلودفلر (اینجا آی‌پی‌های خودت رو بذار)
+          #  ●  آی‌پی‌های تمیز Cloudflare
           # ═══════════════════════════════════════════════════════
           CLEAN_CLOUDFLARE_IPS = [
-              # ⬇️ آی‌پی‌های تمیز کلودفلر که پیدا کردی رو اینجا بنویس (با کاما جدا کن)
-              "104.16.1.1", 
-              "104.17.2.2",
-              "104.18.3.3",
-              # "104.x.x.x",
+              "104.16.76.82",
+              "172.67.173.131",
+              "104.24.91.121",
+              "104.21.105.191",
+              "104.21.89.224",
+              "172.65.37.154",
+              "104.20.17.150",
+              "104.18.110.71",
+              "104.20.60.100",
+              "104.21.118.80",
+              "104.21.217.104",
+              "104.21.43.40",
+              "104.18.243.50",
+              "172.64.84.96",
+              "104.24.191.227",
+              "104.17.73.144",
+              "104.16.72.65",
+              "104.24.85.34",
+              "172.66.130.211",
+              "172.67.185.60",
           ]
 
+          # ═══════════════════════════════════════════════════════
+          #  ●  دیتابیس کامل رنج‌های IPv4 شرکت Fastly
+          # ═══════════════════════════════════════════════════════
+          FASTLY_CIDRS = [
+              "23.235.32.0/20", "43.249.72.0/22", "103.244.50.0/24",
+              "103.245.222.0/23", "103.245.224.0/24", "104.156.80.0/20",
+              "146.75.0.0/17", "151.101.0.0/16", "157.52.64.0/18",
+              "167.82.0.0/17", "167.82.128.0/20", "167.82.160.0/20",
+              "167.82.224.0/20", "172.111.64.0/18", "185.31.16.0/22",
+              "199.27.72.0/21", "199.232.0.0/16",
+          ]
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  دیتابیس کامل رنج‌های IPv4 شرکت Cloudflare
+          # ═══════════════════════════════════════════════════════
+          CLOUDFLARE_CIDRS = [
+              "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+              "104.16.0.0/13", "104.24.0.0/14", "108.162.192.0/18",
+              "131.0.72.0/22", "141.101.64.0/18", "162.158.0.0/15",
+              "172.64.0.0/13", "173.245.48.0/20", "188.114.96.0/20",
+              "190.93.240.0/20", "197.234.240.0/22", "198.41.128.0/17",
+          ]
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  تنظیمات و کش رنج‌ها
+          # ═══════════════════════════════════════════════════════
           IPS_PER_CONFIG = 5
           MIN_OCTET_3 = 1
           MAX_OCTET_3 = 254
           MIN_OCTET_4 = 10
           MAX_OCTET_4 = 200
 
-          def generate_random_fastly_ip(prefix):
-              parts = prefix.strip('.').split('.')
-              if len(parts) >= 2:
-                  return f"{parts[0]}.{parts[1]}.{random.randint(MIN_OCTET_3, MAX_OCTET_3)}.{random.randint(MIN_OCTET_4, MAX_OCTET_4)}"
-              return prefix
+          _FASTLY_NETS = [ipaddress.ip_network(c) for c in FASTLY_CIDRS]
+          _CF_NETS = [ipaddress.ip_network(c) for c in CLOUDFLARE_CIDRS]
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  توابع کمکی
+          # ═══════════════════════════════════════════════════════
+          def generate_random_fastly_ip():
+              prefix = random.choice(TARGET_FASTLY_PREFIXES)
+              a, b = prefix.strip(".").split(".")
+              return f"{a}.{b}.{random.randint(MIN_OCTET_3, MAX_OCTET_3)}.{random.randint(MIN_OCTET_4, MAX_OCTET_4)}"
+
+          def _ip_in_nets(host, nets):
+              try:
+                  ip = ipaddress.ip_address(host)
+              except ValueError:
+                  return False
+              return any(ip in net for net in nets)
+
+          def is_fastly_host(host):
+              if host.endswith(".fastly.net"):
+                  return True
+              return _ip_in_nets(host, _FASTLY_NETS)
+
+          def is_cloudflare_host(host):
+              if host.endswith(".cloudflare.com") or host.endswith(".cloudflare.net"):
+                  return True
+              return _ip_in_nets(host, _CF_NETS)
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  پردازش فایل و تزریق آی‌پی تمیز
+          # ═══════════════════════════════════════════════════════
+          HOST_RE = re.compile(r'^([a-z]+://[^@]+@)([^:/?#]+)(.*)$', re.IGNORECASE)
 
           def process_file(filename):
               if not os.path.exists(filename):
                   return
-              
+
               with open(filename, "r", encoding="utf-8") as f:
                   lines = [l.strip() for l in f if l.strip()]
 
@@ -658,46 +712,37 @@ jobs:
                       untouched += 1
                       continue
 
-                  try:
-                      match = re.match(r'^([a-z]+://[^@]+@)([^:/?#]+)(.*)$', line, re.IGNORECASE)
-                      if not match:
-                          new_lines.append(line)
-                          untouched += 1
-                          continue
-                      
-                      prefix, original_host, suffix = match.groups()
-                      
-                      is_fastly = any(original_host.startswith(t) for t in FASTLY_PREFIXES)
-                      is_cloudflare = any(original_host.startswith(t) for t in CLOUDFLARE_PREFIXES)
+                  match = HOST_RE.match(line)
+                  if not match:
+                      new_lines.append(line)
+                      untouched += 1
+                      continue
 
-                      if is_fastly:
-                          # برای Fastly: تولید رندم بر اساس رنج
-                          for _ in range(IPS_PER_CONFIG):
-                              matched = next(t for t in FASTLY_PREFIXES if original_host.startswith(t))
-                              new_lines.append(f"{prefix}{generate_random_fastly_ip(matched)}{suffix}")
-                          fastly_injected += 1
-                      elif is_cloudflare and CLEAN_CLOUDFLARE_IPS:
-                          # برای کلودفلر: انتخاب رندم از لیست تمیز
-                          for _ in range(IPS_PER_CONFIG):
-                              clean_ip = random.choice(CLEAN_CLOUDFLARE_IPS)
-                              new_lines.append(f"{prefix}{clean_ip}{suffix}")
-                          cf_injected += 1
-                      else:
-                          # بقیه کانفیگ‌ها: دست نزن
-                          new_lines.append(line)
-                          untouched += 1
-                  except Exception:
+                  prefix, original_host, suffix = match.groups()
+
+                  if is_fastly_host(original_host):
+                      for _ in range(IPS_PER_CONFIG):
+                          new_lines.append(f"{prefix}{generate_random_fastly_ip()}{suffix}")
+                      fastly_injected += 1
+                  elif CLEAN_CLOUDFLARE_IPS and is_cloudflare_host(original_host):
+                      for _ in range(IPS_PER_CONFIG):
+                          new_lines.append(f"{prefix}{random.choice(CLEAN_CLOUDFLARE_IPS)}{suffix}")
+                      cf_injected += 1
+                  else:
                       new_lines.append(line)
                       untouched += 1
 
               with open(filename, "w", encoding="utf-8") as f:
                   f.write("\n".join(new_lines) + "\n")
-              
-              print(f"✅ {filename}:")
-              print(f"   - {fastly_injected} کانفیگ Fastly تغییر کرد (رندم).")
-              print(f"   - {cf_injected} کانفیگ Cloudflare تغییر کرد (از لیست تمیز).")
-              print(f"   - {untouched} کانفیگ دست‌نخورده ماند.")
 
+              print(f"✅ {filename}:")
+              print(f"   - تزریق Fastly:    {fastly_injected}")
+              print(f"   - تزریق Cloudflare: {cf_injected}")
+              print(f"   - بدون تغییر:       {untouched}")
+
+          # ═══════════════════════════════════════════════════════
+          #  ●  اجرا روی فایل خروجی
+          # ═══════════════════════════════════════════════════════
           process_file("vless_trojan_filtered.txt")
           PYEOF
 
