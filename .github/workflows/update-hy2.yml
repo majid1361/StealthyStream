@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: stealthystream-updater
@@ -1138,3 +1139,43 @@ jobs:
           git commit -m "Update configs (hy2=${HY2_COUNT}, vless=${VLESS_COUNT}) [CI]"
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
           git push
+      # ═══════════════════════════════════════════════════════
+      #  ●  آپدیت نوتیفیکیشن گیت‌هاب (بدون ساخت Issue جدید)
+      # ═══════════════════════════════════════════════════════
+      - name: Update GitHub Notification Issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ job.status }}';
+            const emoji = status === 'success' ? '✅' : '❌';
+            const title = '[AUTO-NOTIFY] StealthyStream Workflow Status';
+            const body = `**Last Run Status:** ${emoji} ${status.toUpperCase()}\n**Time (UTC):** ${new Date().toISOString()}`;
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              creator: 'github-actions[bot]'
+            });
+
+            const existingIssue = issues.data.find(issue => issue.title === title);
+
+            if (existingIssue) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: body,
+                state: 'open'
+              });
+              console.log('Existing issue updated successfully.');
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body
+              });
+              console.log('New issue created successfully.');
+            }
