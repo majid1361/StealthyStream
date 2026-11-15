@@ -1139,3 +1139,44 @@ jobs:
           git commit -m "Update configs (hy2=${HY2_COUNT}, vless=${VLESS_COUNT}) [CI]"
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
           git push
+          
+      # ═══════════════════════════════════════════════════════
+      #  ●  ساخت نوتیفیکیشن جدید و بستن قبلی‌ها
+      # ═══════════════════════════════════════════════════════
+      - name: Create New Notification Issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ job.status }}';
+            const emoji = status === 'success' ? '✅' : '❌';
+            const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            const title = `[AUTO-NOTIFY] Status: ${emoji} (${now})`;
+            const body = `**Last Run Status:** ${emoji} ${status.toUpperCase()}\n**Time (UTC):** ${now}`;
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
+
+            const oldNotifyIssues = issues.data.filter(issue => issue.title.includes('[AUTO-NOTIFY]'));
+
+            for (const issue of oldNotifyIssues) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+              console.log(`Closed old issue #${issue.number}`);
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body
+            });
+            console.log('New issue created successfully.');
