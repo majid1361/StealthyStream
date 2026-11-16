@@ -129,7 +129,6 @@ jobs:
 
           VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
           ALL_PROTOCOLS = VLESS_TROJAN_PROTOCOLS
-          FULL_TEXT_PROTOCOLS = {"warp", "tuic"}
 
           UNSAFE_PATTERNS = (
               "insecure=1",
@@ -258,13 +257,7 @@ jobs:
               if not protocol:
                   return None
 
-              if protocol in {"hy2", "hysteria", "hysteria2"}:
-                  protocol = "hysteria2"
-
               base_config = line.split("#", 1)[0].strip()
-
-              if protocol in FULL_TEXT_PROTOCOLS:
-                  return (protocol, base_config)
 
               if not parsed.netloc:
                   return None
@@ -739,7 +732,7 @@ jobs:
           wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ آماده‌سازی xray-knife ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
 
           # ────────────────────────────────────────────────────────
-          # تست هوشمند و بهینه (فقط VLESS/Trojan - بدون کرش UDP)
+          # تست هوشمند و بهینه
           # ────────────────────────────────────────────────────────
           TARGETS=("vless_trojan")
 
@@ -781,7 +774,6 @@ jobs:
           import ipaddress
           from urllib.parse import urlparse, parse_qs, unquote
 
-          FULL_TEXT_PROTOCOLS = {"warp", "tuic"}
           KEEP_PER_GROUP = 2
 
           def split_host_port(netloc):
@@ -823,13 +815,7 @@ jobs:
               if not protocol:
                   return None
 
-              if protocol in {"hy2", "hysteria", "hysteria2"}:
-                  protocol = "hysteria2"
-
               base_config = line.split("#", 1)[0].strip()
-
-              if protocol in FULL_TEXT_PROTOCOLS:
-                  return (protocol, base_config)
 
               if not parsed.netloc:
                   return None
