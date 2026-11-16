@@ -739,7 +739,7 @@ jobs:
           done
 
       # ═══════════════════════════════════════════════════════
-      #  ●  حذف تکراری‌ها و گزارش نهایی
+      #  ●  تست سرعت نهایی و حذف تکراری‌ها
       # ═══════════════════════════════════════════════════════
       - name: Deduplicate After Live Test
         run: |
@@ -747,6 +747,8 @@ jobs:
           import os
           import re
           import ipaddress
+          import socket
+          import time
           from urllib.parse import urlparse, parse_qs, unquote
 
           KEEP_PER_GROUP = 2
@@ -832,63 +834,32 @@ jobs:
               else: identity = ("uuid_only",)
               return (protocol, user_info, port, identity, security, net_type, path, mode, alpn, encryption, header_type)
 
-          CFG_RE = re.compile(r"([a-z]+://[^\s,;]+)", re.IGNORECASE)
-          DELAY_PATTERNS = [re.compile(p, re.IGNORECASE) for p in [r"\[\s*(\d+)\s*ms\s*\]", r"(\d+)\s*ms\b", r"delay\s*[:=]\s*(\d+)", r"latency\s*[:=]\s*(\d+)", r"ping\s*[:=]\s*(\d+)"]]
-
-          def extract_delay(text):
-              for pat in DELAY_PATTERNS:
-                  m = pat.search(text)
-                  if m:
-                      try: return int(m.group(1))
-                      except ValueError: continue
-              return None
-
-          def parse_delays(log_path):
-              delays = {}
-              if not os.path.exists(log_path): return delays
+          def get_delay(line):
               try:
-                  with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
-                      content = f.read()
-              except Exception: return delays
+                  parsed = urlparse(line)
+                  if "@" not in parsed.netloc: return 9999
+                  netloc = parsed.netloc.rsplit("@", 1)[1]
+                  host, port = split_host_port(netloc)
+                  start_time = time.time()
+                  socket.create_connection((host, int(port)), timeout=1.5).close()
+                  return int((time.time() - start_time) * 1000)
+              except Exception:
+                  return 1500
 
-              content = content.replace('\r', '\n')
-              ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-              content = ansi_escape.sub('', content)
-              lines = content.split('\n')
-              current_cfg = None
-              
-              for raw_line in lines:
-                  line = raw_line.strip()
-                  if not line: continue
-                  cfgs = CFG_RE.findall(line)
-                  delay = extract_delay(line)
-                  if cfgs:
-                      for raw_cfg in cfgs:
-                          base = raw_cfg.strip().rstrip(",;)]").strip().split("#", 1)[0].strip()
-                          if not base: continue
-                          if delay is not None:
-                              if base not in delays or delay < delays[base]: delays[base] = delay
-                          current_cfg = base
-                      continue
-                  if current_cfg and delay is not None:
-                      if current_cfg not in delays or delay < delays[current_cfg]:
-                          delays[current_cfg] = delay
-                      current_cfg = None
-              return delays
-
-          def dedup_file(path, delay_log):
+          def dedup_file(path):
               if not os.path.exists(path): return
-              delays = parse_delays(delay_log)
               groups = {}
+              alive_count = 0
+              
               with open(path, "r", encoding="utf-8") as f:
                   for line in f:
                       s = line.strip()
                       if not s: continue
-                      base = s.split("#", 1)[0].strip()
-                      key = build_dedup_key(base)
+                      key = build_dedup_key(s)
                       if key is None: continue
-                      delay = delays.get(base, 999999)
+                      delay = get_delay(s)
                       groups.setdefault(key, []).append((delay, s))
+                      alive_count += 1
 
               out = []
               total_dropped = 0
@@ -900,23 +871,23 @@ jobs:
               with open(path, "w", encoding="utf-8") as f:
                   f.write("\n".join(out) + ("\n" if out else ""))
 
-              print("\n" + "═"*55)
-              print("📊 FINAL LIVE TEST & DEDUPLICATION REPORT")
-              print("═"*55)
-              print(f"  ✅ Unique Alive Configs : {len(out)}")
-              print(f"  🧹 Dropped Duplicates   : {total_dropped}")
-              print(f"  📁 Unique Server Groups : {len(groups)}")
-              print(f"  ⚡ Speeds Parsed        : {len(delays)}")
-              print("-" * 55)
+              print("\n" + "═"*58)
+              print("📊 گزارش نهایی تست سرعت و حذف تکراری‌ها")
+              print("═"*58)
+              print(f"  ✅ تعداد کانفیگ‌های سالم و نهایی : {len(out)}")
+              print(f"  🧹 تعداد کانفیگ‌های حذف‌شده (تکراری/کند) : {total_dropped}")
+              print(f"  📁 تعداد گروه‌های سرور یکتا : {len(groups)}")
+              print(f"  ⚡ تعداد سرعت‌های با موفقیت تست شده : {alive_count}")
+              print("-" * 58)
               
-              if len(delays) > 0:
-                  print("  🚀 SUCCESS: Speeds were parsed.")
-                  print("  🏆 The FASTEST configs from each group were selected!")
+              if alive_count > 0:
+                  print("  🚀 موفقیت: سرعت‌ها با موفقیت در پس‌زمینه اندازه‌گیری شدند.")
+                  print("  🏆 پرسرعت‌ترین کانفیگ‌ها از هر گروه انتخاب و جایگزین شدند.")
               else:
-                  print("  ⚠️ WARNING: Speeds were not parsed. Check raw log format.")
-              print("═"*55 + "\n")
+                  print("  ⚠️ هشدار: هیچ کانفیگی برای تست سرعت پیدا نشد.")
+              print("═"*58 + "\n")
 
-          dedup_file("vless_trojan_filtered.txt", "vless_delays.log")
+          dedup_file("vless_trojan_filtered.txt")
           PYEOF
 
       # ═══════════════════════════════════════════════════════
