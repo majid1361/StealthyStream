@@ -127,8 +127,9 @@ jobs:
               )
           }
 
-          HY2_PROTOCOLS = ("hysteria2://", "hysteria://", "hy2://")
-          VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://", "tuic://", "warp://")
+          # 🚨 تغییر ۱: پروتکل‌های UDP (Hy2, TUIC, WARP) حذف شدند تا xray-knife کرش نکند
+          HY2_PROTOCOLS = ()
+          VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
           ALL_PROTOCOLS = HY2_PROTOCOLS + VLESS_TROJAN_PROTOCOLS
           FULL_TEXT_PROTOCOLS = {"warp", "tuic"}
 
@@ -147,8 +148,9 @@ jobs:
               "@0.0.0.0:",
           )
 
+          # 🚨 تغییر ۲: فقط به دنبال VLESS و Trojan می‌گردد
           CONFIG_REGEX = re.compile(
-              r'(?:vless|trojan|tuic|warp|hysteria2|hysteria|hy2)://[^\s<>"\'`]+',
+              r'(?:vless|trojan)://[^\s<>"\'`]+',
               re.IGNORECASE,
           )
 
@@ -770,9 +772,10 @@ jobs:
           wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ آماده‌سازی xray-knife ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
 
           # ────────────────────────────────────────────────────────
-          # تست هوشمند و بهینه (با ۲۰ ترد برای جلوگیری از کرش UDP)
+          # تست هوشمند و بهینه (فقط VLESS/Trojan - بدون کرش UDP)
           # ────────────────────────────────────────────────────────
-          TARGETS=("hy2" "vless_trojan")
+          # 🚨 تغییر ۳: hy2 از این لیست حذف شد چون تست نمی‌شود
+          TARGETS=("vless_trojan")
 
           for TARGET in "${TARGETS[@]}"; do
             INPUT_FILE="${TARGET}_filtered.txt"
