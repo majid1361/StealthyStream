@@ -310,8 +310,9 @@ jobs:
               if header_type == "none":
                   header_type = ""
 
-              if security in ("", "none") and encryption in ("", "none"):
-                  return None
+              if protocol != "trojan":
+                  if security in ("", "none") and encryption in ("", "none"):
+                      return None
 
               if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk):
                   return None
@@ -489,7 +490,6 @@ jobs:
               dropped_vmess = 0
               dropped_dup = 0
               dropped_quic = 0
-              dropped_useless = 0
 
               for line in raw_list:
                   if not line:
@@ -509,19 +509,9 @@ jobs:
                       dropped_unsafe += 1
                       continue
 
-                  # فیلتر سخت‌گیرانه: حذف کامل کانفیگ‌های QUIC و KCP (عامل کرش)
+                  # حذف کامل کانفیگ‌های QUIC و KCP (عامل کرش)
                   if "type=quic" in low or "type=kcp" in low:
                       dropped_quic += 1
-                      continue
-
-                  # فیلتر سخت‌گیرانه: فقط Reality, XHTTP, WS, gRPC
-                  is_reality = "security=reality" in low
-                  is_xhttp = "type=xhttp" in low
-                  is_ws = "type=ws" in low
-                  is_grpc = "type=grpc" in low
-                  
-                  if not (is_reality or is_xhttp or is_ws or is_grpc):
-                      dropped_useless += 1
                       continue
 
                   key = build_dedup_key(line)
@@ -542,8 +532,7 @@ jobs:
                   f"نامعتبر={dropped_invalid} | "
                   f"تکراری={dropped_dup} | "
                   f"vmess(drop)={dropped_vmess} | "
-                  f"کرش‌ساز(QUIC)={dropped_quic} | "
-                  f"بی‌استفاده={dropped_useless}"
+                  f"کرش‌ساز(QUIC)={dropped_quic}"
               )
               return out
 
@@ -742,7 +731,7 @@ jobs:
             if [ -s "$INPUT_FILE" ]; then
               echo "🧪 تست $TARGET (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۲۰ ترد همزمان)..."
               
-              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 20 -o "$OUTPUT_FILE" 2>&1 | tee "$LOG_FILE" || true
+              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 20 -v -o "$OUTPUT_FILE" 2>&1 | tee "$LOG_FILE" || true
 
               if [ -s "$OUTPUT_FILE" ]; then
                 sed -i '/^$/d' "$OUTPUT_FILE"
@@ -866,8 +855,9 @@ jobs:
               if header_type == "none":
                   header_type = ""
 
-              if security in ("", "none") and encryption in ("", "none"):
-                  return None
+              if protocol != "trojan":
+                  if security in ("", "none") and encryption in ("", "none"):
+                      return None
 
               if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk):
                   return None
@@ -933,21 +923,17 @@ jobs:
                           continue
               return None
 
-          # ─── این تابع جادو می‌کند! ───
           def parse_delays(log_path):
               delays = {}
               if not os.path.exists(log_path):
                   return delays
               try:
                   with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
-                      content = f.read()  # کل فایل را یکجا می‌خوانیم
+                      content = f.read()
               except Exception:
                   return delays
 
-              # تبدیل کاراکترهای \r به \n برای جداسازی خطوط نوار پیشرفت
               content = content.replace('\r', '\n')
-              
-              # حذف کدهای رنگی ANSI که ممکن است به کانفیگ‌ها بچسبند
               ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
               content = ansi_escape.sub('', content)
               
@@ -994,13 +980,12 @@ jobs:
                       key = build_dedup_key(base)
                       if key is None:
                           continue
-                      delay = delays.get(base, 999999) # اگر سرعتی پیدا نشد، 999999 در نظر گرفته می‌شود
+                      delay = delays.get(base, 999999)
                       groups.setdefault(key, []).append((delay, s))
 
               out = []
               total_dropped = 0
               for key, items in groups.items():
-                  # مرتب‌سازی بر اساس سرعت (کمترین میلی‌ثانیه = بهترین)
                   items.sort(key=lambda x: x[0])
                   for delay, cfg in items[:KEEP_PER_GROUP]:
                       out.append(cfg)
