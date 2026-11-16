@@ -695,7 +695,7 @@ jobs:
           PYEOF
 
       # ═══════════════════════════════════════════════════════
-      #  ●  تست زنده و حذف سرورهای مرده با xray-knife
+      #  ●  تست زنده و حذف سرورهای مرده
       # ═══════════════════════════════════════════════════════
       - name: Live Test and Filter Dead Servers
         timeout-minutes: 120
@@ -703,23 +703,19 @@ jobs:
           ENABLE_PING_TEST=true
 
           if [ "${ENABLE_PING_TEST:-false}" != "true" ]; then
-            echo "⏸️ Ping test disabled. Keeping files unchanged."
+            echo "⏸️ Ping test disabled."
             exit 0
           fi
 
-          echo "🔧 Installing Xray (Direct Download)..."
+          echo "🔧 Installing Xray..."
           curl -sL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -o xray.zip
           unzip -q -o xray.zip xray
           chmod +x xray
-          sudo mv xray /usr/local/bin/xray || { echo "❌ Xray install failed."; exit 0; }
+          sudo mv xray /usr/local/bin/xray || exit 0
 
           echo "📥 Downloading xray-knife..."
           KNIFE_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest | grep -o '"browser_download_url": *"[^"]*linux-64[^"]*"' | cut -d '"' -f 4 | head -n 1)
-          if [ -z "$KNIFE_URL" ]; then
-            echo "❌ Download link not found."
-            exit 0
-          fi
-          wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ xray-knife setup failed."; exit 0; }
+          wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || exit 0
 
           TARGETS=("vless_trojan")
 
@@ -729,30 +725,21 @@ jobs:
             LOG_FILE="${TARGET}_delays.log"
 
             if [ -s "$INPUT_FILE" ]; then
-              echo "🧪 Testing $TARGET (Strict mode: Max delay 3000ms, 20 threads)..."
+              echo "🧪 Live testing started (Max delay: 3000ms). Please wait, this takes a few minutes..."
               
               ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
 
-              echo "✅ Testing finished."
-              
               if [ -s "$OUTPUT_FILE" ]; then
                 sed -i '/^$/d' "$OUTPUT_FILE"
-                
                 if [ -s "$OUTPUT_FILE" ]; then
                   mv "$OUTPUT_FILE" "$INPUT_FILE"
-                  echo "✅ $INPUT_FILE updated with live test results."
-                else
-                  echo "🛡️ $OUTPUT_FILE is empty — previous $TARGET file kept."
                 fi
-              else
-                echo "🛡️ $OUTPUT_FILE not created or empty — previous $TARGET file kept."
               fi
-            else
-              echo "⚠️ $INPUT_FILE is empty — skipping $TARGET."
             fi
           done
+
       # ═══════════════════════════════════════════════════════
-      #  ●  حذف تکراری‌های واقعی پس از تست زنده
+      #  ●  حذف تکراری‌ها و گزارش نهایی
       # ═══════════════════════════════════════════════════════
       - name: Deduplicate After Live Test
         run: |
@@ -778,54 +765,32 @@ jobs:
 
           def is_private_or_invalid_host(host):
               host = (host or "").strip("[]").strip().lower()
-              if not host:
-                  return True
-              if host in {"localhost", "0.0.0.0", "::", "::1"}:
-                  return True
-              if host.endswith(".local") or host.endswith(".localhost"):
-                  return True
+              if not host: return True
+              if host in {"localhost", "0.0.0.0", "::", "::1"}: return True
+              if host.endswith(".local") or host.endswith(".localhost"): return True
               try:
                   ip = ipaddress.ip_address(host)
               except ValueError:
                   return False
-              return (
-                  ip.is_private or ip.is_loopback or ip.is_link_local
-                  or ip.is_multicast or ip.is_reserved or ip.is_unspecified
-              )
+              return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
 
           def build_dedup_key(line):
               try:
                   parsed = urlparse(line)
               except Exception:
                   return None
-
               protocol = (parsed.scheme or "").lower()
-              if not protocol:
-                  return None
-
-              base_config = line.split("#", 1)[0].strip()
-
-              if not parsed.netloc:
-                  return None
-
-              if "@" not in parsed.netloc:
-                  return None
-
+              if not protocol: return None
+              if not parsed.netloc: return None
+              if "@" not in parsed.netloc: return None
               user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
               user_info = unquote(user_info_raw).strip().lower()
-              if not user_info:
-                  return None
-
-              if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.", user_info):
-                  return None
-              if re.match(r"^[0-9a-f]{32}\.[0-9a-z]", user_info):
-                  return None
-
+              if not user_info: return None
+              if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.", user_info): return None
+              if re.match(r"^[0-9a-f]{32}\.[0-9a-z]", user_info): return None
               host, port = split_host_port(netloc)
               host = unquote(host).strip("[]").lower().rstrip(".")
-              if is_private_or_invalid_host(host):
-                  return None
-
+              if is_private_or_invalid_host(host): return None
               q = parse_qs(parsed.query, keep_blank_values=False)
 
               def qv_raw(*keys):
@@ -834,14 +799,11 @@ jobs:
                       for actual, vals in q.items():
                           if actual.lower() == kl and vals:
                               v = vals[0]
-                              if v is not None and v != "":
-                                  return v.strip()
+                              if v is not None and v != "": return v.strip()
                   return ""
 
               host_param = qv_raw("host").lower().rstrip(".")
-              if "/" in host_param or "?" in host_param:
-                  host_param = ""
-
+              if "/" in host_param or "?" in host_param: host_param = ""
               sni = qv_raw("sni", "serverName", "peer", "server_name").lower().rstrip(".")
               pbk = qv_raw("pbk", "publicKey", "public_key")
               sid = qv_raw("sid", "shortId", "short_id")
@@ -853,134 +815,78 @@ jobs:
               alpn = qv_raw("alpn").lower()
               encryption = qv_raw("encryption").lower() or "none"
               header_type = qv_raw("headerType", "headertype").lower()
-              if header_type == "none":
-                  header_type = ""
-
+              if header_type == "none": header_type = ""
               if protocol != "trojan":
-                  if security in ("", "none") and encryption in ("", "none"):
-                      return None
-
-              if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk):
-                  return None
-
-              if not path:
-                  path = "/"
+                  if security in ("", "none") and encryption in ("", "none"): return None
+              if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk): return None
+              if not path: path = "/"
               elif "?" in path:
                   base, query = path.split("?", 1)
                   q_low = query.lower()
-                  branding = (
-                      "telegram", "planb_net", "marambashi", "tootffarangi",
-                      "v2ray_confiig", "evay_vpn", "mtmvpn", "bored_vpn",
-                      "iranping24", "mehrosaboran", "tehranargo", "dailyconfigs",
-                      "i10vpn", "b2hub", "amiraxvpn", "atovpn", "spiddy",
-                      "javidnamaniran", "arsalanvpn", "v2raxx", "mitivpn",
-                  )
-                  is_branding = (
-                      not q_low
-                      or q_low.startswith("ed=")
-                      or any(t in q_low for t in branding)
-                  )
+                  branding = ("telegram", "planb_net", "marambashi", "tootffarangi", "v2ray_confiig", "evay_vpn", "mtmvpn", "bored_vpn", "iranping24", "mehrosaboran", "tehranargo", "dailyconfigs", "i10vpn", "b2hub", "amiraxvpn", "atovpn", "spiddy", "javidnamaniran", "arsalanvpn", "v2raxx", "mitivpn")
+                  is_branding = (not q_low or q_low.startswith("ed=") or any(t in q_low for t in branding))
                   path = base if is_branding else (base + "?" + query)
-
-              if pbk or sid:
-                  identity = ("reality", pbk, sid, sni, flow)
-              elif host_param:
-                  identity = ("host", host_param, path, net_type, mode, alpn)
-              elif sni:
-                  identity = ("sni", sni, path, net_type, mode, alpn)
-              else:
-                  identity = ("uuid_only",)
-
-              return (
-                  protocol,
-                  user_info,
-                  port,
-                  identity,
-                  security,
-                  net_type,
-                  path,
-                  mode,
-                  alpn,
-                  encryption,
-                  header_type,
-              )
+              if pbk or sid: identity = ("reality", pbk, sid, sni, flow)
+              elif host_param: identity = ("host", host_param, path, net_type, mode, alpn)
+              elif sni: identity = ("sni", sni, path, net_type, mode, alpn)
+              else: identity = ("uuid_only",)
+              return (protocol, user_info, port, identity, security, net_type, path, mode, alpn, encryption, header_type)
 
           CFG_RE = re.compile(r"([a-z]+://[^\s,;]+)", re.IGNORECASE)
-          DELAY_PATTERNS = [
-              re.compile(r"\[\s*(\d+)\s*ms\s*\]", re.IGNORECASE),
-              re.compile(r"(\d+)\s*ms\b", re.IGNORECASE),
-              re.compile(r"delay\s*[:=]\s*(\d+)", re.IGNORECASE),
-              re.compile(r"latency\s*[:=]\s*(\d+)", re.IGNORECASE),
-              re.compile(r"ping\s*[:=]\s*(\d+)", re.IGNORECASE),
-          ]
+          DELAY_PATTERNS = [re.compile(p, re.IGNORECASE) for p in [r"\[\s*(\d+)\s*ms\s*\]", r"(\d+)\s*ms\b", r"delay\s*[:=]\s*(\d+)", r"latency\s*[:=]\s*(\d+)", r"ping\s*[:=]\s*(\d+)"]]
 
           def extract_delay(text):
               for pat in DELAY_PATTERNS:
                   m = pat.search(text)
                   if m:
-                      try:
-                          return int(m.group(1))
-                      except ValueError:
-                          continue
+                      try: return int(m.group(1))
+                      except ValueError: continue
               return None
 
           def parse_delays(log_path):
               delays = {}
-              if not os.path.exists(log_path):
-                  return delays
+              if not os.path.exists(log_path): return delays
               try:
                   with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
                       content = f.read()
-              except Exception:
-                  return delays
+              except Exception: return delays
 
               content = content.replace('\r', '\n')
               ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
               content = ansi_escape.sub('', content)
-              
               lines = content.split('\n')
               current_cfg = None
               
               for raw_line in lines:
                   line = raw_line.strip()
-                  if not line:
-                      continue
-
+                  if not line: continue
                   cfgs = CFG_RE.findall(line)
                   delay = extract_delay(line)
-
                   if cfgs:
                       for raw_cfg in cfgs:
                           base = raw_cfg.strip().rstrip(",;)]").strip().split("#", 1)[0].strip()
-                          if not base:
-                              continue
+                          if not base: continue
                           if delay is not None:
-                              if base not in delays or delay < delays[base]:
-                                  delays[base] = delay
+                              if base not in delays or delay < delays[base]: delays[base] = delay
                           current_cfg = base
                       continue
-
                   if current_cfg and delay is not None:
                       if current_cfg not in delays or delay < delays[current_cfg]:
                           delays[current_cfg] = delay
                       current_cfg = None
-
               return delays
 
           def dedup_file(path, delay_log):
-              if not os.path.exists(path):
-                  return
+              if not os.path.exists(path): return
               delays = parse_delays(delay_log)
               groups = {}
               with open(path, "r", encoding="utf-8") as f:
                   for line in f:
                       s = line.strip()
-                      if not s:
-                          continue
+                      if not s: continue
                       base = s.split("#", 1)[0].strip()
                       key = build_dedup_key(base)
-                      if key is None:
-                          continue
+                      if key is None: continue
                       delay = delays.get(base, 999999)
                       groups.setdefault(key, []).append((delay, s))
 
@@ -988,18 +894,27 @@ jobs:
               total_dropped = 0
               for key, items in groups.items():
                   items.sort(key=lambda x: x[0])
-                  for delay, cfg in items[:KEEP_PER_GROUP]:
-                      out.append(cfg)
+                  for delay, cfg in items[:KEEP_PER_GROUP]: out.append(cfg)
                   total_dropped += max(0, len(items) - KEEP_PER_GROUP)
 
               with open(path, "w", encoding="utf-8") as f:
                   f.write("\n".join(out) + ("\n" if out else ""))
-              print(
-                  f"🧹 {path}: نگه‌داشته={len(out)} | "
-                  f"تکراری={total_dropped} | "
-                  f"گروه‌ها={len(groups)} | "
-                  f"سرعت‌های شناسایی‌شده={len(delays)}"
-              )
+
+              print("\n" + "═"*55)
+              print("📊 FINAL LIVE TEST & DEDUPLICATION REPORT")
+              print("═"*55)
+              print(f"  ✅ Unique Alive Configs : {len(out)}")
+              print(f"  🧹 Dropped Duplicates   : {total_dropped}")
+              print(f"  📁 Unique Server Groups : {len(groups)}")
+              print(f"  ⚡ Speeds Parsed        : {len(delays)}")
+              print("-" * 55)
+              
+              if len(delays) > 0:
+                  print("  🚀 SUCCESS: Speeds were parsed.")
+                  print("  🏆 The FASTEST configs from each group were selected!")
+              else:
+                  print("  ⚠️ WARNING: Speeds were not parsed. Check raw log format.")
+              print("═"*55 + "\n")
 
           dedup_file("vless_trojan_filtered.txt", "vless_delays.log")
           PYEOF
