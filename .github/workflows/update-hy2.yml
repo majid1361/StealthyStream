@@ -1109,9 +1109,12 @@ jobs:
           script: |
             const status = '${{ job.status }}';
             const emoji = status === 'success' ? '✅' : '❌';
-            const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-            const title = `[AUTO-NOTIFY] Status: ${emoji} (${now})`;
-            const body = `**Last Run Status:** ${emoji} ${status.toUpperCase()}\n**Time (UTC):** ${now}`;
+            
+            // تنظیم زمان دقیق به وقت تهران (فرمت: YYYY-MM-DD HH:mm:ss)
+            const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tehran' });
+            
+            const title = `[AUTO-NOTIFY] Status: ${emoji} (${now}) IRST`;
+            const body = `**Last Run Status:** ${emoji} ${status.toUpperCase()}\n**Time (IRST):** ${now}`;
 
             const issues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
