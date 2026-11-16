@@ -703,27 +703,24 @@ jobs:
           ENABLE_PING_TEST=true
 
           if [ "${ENABLE_PING_TEST:-false}" != "true" ]; then
-            echo "⏸️  تست پینگ غیرفعال شد — فایل‌ها دست‌نخورده می‌مانند."
+            echo "⏸️ Ping test disabled. Keeping files unchanged."
             exit 0
           fi
 
-          echo "🔧 نصب هسته Xray (Direct Download)..."
+          echo "🔧 Installing Xray (Direct Download)..."
           curl -sL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -o xray.zip
           unzip -q -o xray.zip xray
           chmod +x xray
-          sudo mv xray /usr/local/bin/xray || { echo "❌ نصب Xray ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
+          sudo mv xray /usr/local/bin/xray || { echo "❌ Xray install failed."; exit 0; }
 
-          echo "📥 دریافت xray-knife (با توکن گیت‌هاب)..."
+          echo "📥 Downloading xray-knife..."
           KNIFE_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest | grep -o '"browser_download_url": *"[^"]*linux-64[^"]*"' | cut -d '"' -f 4 | head -n 1)
           if [ -z "$KNIFE_URL" ]; then
-            echo "❌ لینک دانلود پیدا نشد — فایل‌ها بدون فیلتر commit می‌شوند."
+            echo "❌ Download link not found."
             exit 0
           fi
-          wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ آماده‌سازی xray-knife ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
+          wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || { echo "❌ xray-knife setup failed."; exit 0; }
 
-          # ────────────────────────────────────────────────────────
-          # تست هوشمند و بهینه
-          # ────────────────────────────────────────────────────────
           TARGETS=("vless_trojan")
 
           for TARGET in "${TARGETS[@]}"; do
@@ -732,24 +729,26 @@ jobs:
             LOG_FILE="${TARGET}_delays.log"
 
             if [ -s "$INPUT_FILE" ]; then
-              echo "🧪 تست $TARGET (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۲۰ ترد همزمان)..."
+              echo "🧪 Testing $TARGET (Strict mode: Max delay 3000ms, 20 threads)..."
               
-              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 20 -v -o "$OUTPUT_FILE" 2>&1 | grep -E "vless://|trojan://" | tee "$LOG_FILE" || true
+              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
 
+              echo "✅ Testing finished."
+              
               if [ -s "$OUTPUT_FILE" ]; then
                 sed -i '/^$/d' "$OUTPUT_FILE"
                 
                 if [ -s "$OUTPUT_FILE" ]; then
                   mv "$OUTPUT_FILE" "$INPUT_FILE"
-                  echo "✅ $INPUT_FILE با نتایج تست زنده به‌روز شد."
+                  echo "✅ $INPUT_FILE updated with live test results."
                 else
-                  echo "🛡️ $OUTPUT_FILE خالی است — فایل قبلی $TARGET حفظ شد."
+                  echo "🛡️ $OUTPUT_FILE is empty — previous $TARGET file kept."
                 fi
               else
-                echo "🛡️ $OUTPUT_FILE ساخته نشد یا خالی است — فایل قبلی $TARGET حفظ شد."
+                echo "🛡️ $OUTPUT_FILE not created or empty — previous $TARGET file kept."
               fi
             else
-              echo "⚠️ فایل $INPUT_FILE خالی است — از تست $TARGET عبور شد."
+              echo "⚠️ $INPUT_FILE is empty — skipping $TARGET."
             fi
           done
       # ═══════════════════════════════════════════════════════
