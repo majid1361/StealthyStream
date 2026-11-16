@@ -707,11 +707,14 @@ jobs:
             exit 0
           fi
 
-          echo "🔧 نصب هسته Xray..."
-          sudo bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install || { echo "❌ نصب Xray ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
+          echo "🔧 نصب هسته Xray (Direct Download)..."
+          curl -sL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -o xray.zip
+          unzip -q -o xray.zip xray
+          chmod +x xray
+          sudo mv xray /usr/local/bin/xray || { echo "❌ نصب Xray ناموفق — فایل‌ها بدون فیلتر commit می‌شوند."; exit 0; }
 
-          echo "📥 دریافت xray-knife..."
-          KNIFE_URL=$(curl -s https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest | grep -o '"browser_download_url": *"[^"]*linux-64[^"]*"' | cut -d '"' -f 4 | head -n 1)
+          echo "📥 دریافت xray-knife (با توکن گیت‌هاب)..."
+          KNIFE_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest | grep -o '"browser_download_url": *"[^"]*linux-64[^"]*"' | cut -d '"' -f 4 | head -n 1)
           if [ -z "$KNIFE_URL" ]; then
             echo "❌ لینک دانلود پیدا نشد — فایل‌ها بدون فیلتر commit می‌شوند."
             exit 0
@@ -749,7 +752,6 @@ jobs:
               echo "⚠️ فایل $INPUT_FILE خالی است — از تست $TARGET عبور شد."
             fi
           done
-
       # ═══════════════════════════════════════════════════════
       #  ●  حذف تکراری‌های واقعی پس از تست زنده
       # ═══════════════════════════════════════════════════════
