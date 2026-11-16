@@ -935,17 +935,27 @@ jobs:
                           continue
               return None
 
+          # ─── این تابع جادو می‌کند! ───
           def parse_delays(log_path):
               delays = {}
               if not os.path.exists(log_path):
                   return delays
               try:
                   with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
-                      lines = f.readlines()
+                      content = f.read()  # کل فایل را یکجا می‌خوانیم
               except Exception:
                   return delays
 
+              # تبدیل کاراکترهای \r به \n برای جداسازی خطوط نوار پیشرفت
+              content = content.replace('\r', '\n')
+              
+              # حذف کدهای رنگی ANSI که ممکن است به کانفیگ‌ها بچسبند
+              ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+              content = ansi_escape.sub('', content)
+              
+              lines = content.split('\n')
               current_cfg = None
+              
               for raw_line in lines:
                   line = raw_line.strip()
                   if not line:
@@ -986,12 +996,13 @@ jobs:
                       key = build_dedup_key(base)
                       if key is None:
                           continue
-                      delay = delays.get(base, 999999)
+                      delay = delays.get(base, 999999) # اگر سرعتی پیدا نشد، 999999 در نظر گرفته می‌شود
                       groups.setdefault(key, []).append((delay, s))
 
               out = []
               total_dropped = 0
               for key, items in groups.items():
+                  # مرتب‌سازی بر اساس سرعت (کمترین میلی‌ثانیه = بهترین)
                   items.sort(key=lambda x: x[0])
                   for delay, cfg in items[:KEEP_PER_GROUP]:
                       out.append(cfg)
