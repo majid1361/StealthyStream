@@ -127,10 +127,8 @@ jobs:
               )
           }
 
-          # 🚨 تغییر ۱: پروتکل‌های UDP (Hy2, TUIC, WARP) حذف شدند تا xray-knife کرش نکند
-          HY2_PROTOCOLS = ()
           VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
-          ALL_PROTOCOLS = HY2_PROTOCOLS + VLESS_TROJAN_PROTOCOLS
+          ALL_PROTOCOLS = VLESS_TROJAN_PROTOCOLS
           FULL_TEXT_PROTOCOLS = {"warp", "tuic"}
 
           UNSAFE_PATTERNS = (
@@ -148,7 +146,6 @@ jobs:
               "@0.0.0.0:",
           )
 
-          # 🚨 تغییر ۲: فقط به دنبال VLESS و Trojan می‌گردد
           CONFIG_REGEX = re.compile(
               r'(?:vless|trojan)://[^\s<>"\'`]+',
               re.IGNORECASE,
@@ -158,7 +155,6 @@ jobs:
           # ═══════════════════════════════════════════════════════
           #  ●  ۴. ذخیره‌سازی موقت
           # ═══════════════════════════════════════════════════════
-          raw_hy2_items = []
           raw_vless_trojan_items = []
 
 
@@ -390,7 +386,6 @@ jobs:
                       content = decode_if_base64(r.text)
                       lines = content.replace("\r", "").split("\n")
 
-                      hy2_added = 0
                       other_added = 0
                       seen_in_source = set()
 
@@ -400,16 +395,12 @@ jobs:
                               continue
                           
                           low = s.lower()
-                          if low.startswith(HY2_PROTOCOLS):
-                              seen_in_source.add(s)
-                              raw_hy2_items.append(s)
-                              hy2_added += 1
-                          elif low.startswith(VLESS_TROJAN_PROTOCOLS):
+                          if low.startswith(VLESS_TROJAN_PROTOCOLS):
                               seen_in_source.add(s)
                               raw_vless_trojan_items.append(s)
                               other_added += 1
 
-                      print(f"✅ [{label}] Hy2: +{hy2_added} | Other: +{other_added}  ←  {url}")
+                      print(f"✅ [{label}] Other: +{other_added}  ←  {url}")
                   except Exception as e:
                       print(f"❌ [{label}] خطا در {url}: {e}")
 
@@ -445,7 +436,6 @@ jobs:
 
                       configs = CONFIG_REGEX.findall(text)
 
-                      hy2_count = 0
                       other_count = 0
                       seen = set()
 
@@ -455,14 +445,11 @@ jobs:
                               continue
                           seen.add(c)
                           low = c.lower()
-                          if low.startswith(HY2_PROTOCOLS):
-                              raw_hy2_items.append(c)
-                              hy2_count += 1
-                          elif low.startswith(VLESS_TROJAN_PROTOCOLS):
+                          if low.startswith(VLESS_TROJAN_PROTOCOLS):
                               raw_vless_trojan_items.append(c)
                               other_count += 1
 
-                      print(f"✅ @{name}: Hy2={hy2_count} | Other={other_count}")
+                      print(f"✅ @{name}: Other={other_count}")
                   except Exception as e:
                       print(f"❌ @{name}: {e}")
                   finally:
@@ -480,9 +467,7 @@ jobs:
                           if not s:
                               continue
                           low = s.lower()
-                          if low.startswith(HY2_PROTOCOLS):
-                              raw_hy2_items.append(s)
-                          elif low.startswith(VLESS_TROJAN_PROTOCOLS):
+                          if low.startswith(VLESS_TROJAN_PROTOCOLS):
                               raw_vless_trojan_items.append(s)
                   print("✅ custom.txt بارگذاری شد.")
               except Exception as e:
@@ -510,6 +495,8 @@ jobs:
               dropped_invalid = 0
               dropped_vmess = 0
               dropped_dup = 0
+              dropped_quic = 0
+              dropped_useless = 0
 
               for line in raw_list:
                   if not line:
@@ -518,6 +505,8 @@ jobs:
                   base = line.split("#", 1)[0].strip()
                   if not base:
                       continue
+                  
+                  low = base.lower()
 
                   if base[:8].lower() == "vmess://":
                       dropped_vmess += 1
@@ -525,6 +514,21 @@ jobs:
 
                   if has_unsafe_pattern(base):
                       dropped_unsafe += 1
+                      continue
+
+                  # فیلتر سخت‌گیرانه: حذف کامل کانفیگ‌های QUIC و KCP (عامل کرش)
+                  if "type=quic" in low or "type=kcp" in low:
+                      dropped_quic += 1
+                      continue
+
+                  # فیلتر سخت‌گیرانه: فقط Reality, XHTTP, WS, gRPC
+                  is_reality = "security=reality" in low
+                  is_xhttp = "type=xhttp" in low
+                  is_ws = "type=ws" in low
+                  is_grpc = "type=grpc" in low
+                  
+                  if not (is_reality or is_xhttp or is_ws or is_grpc):
+                      dropped_useless += 1
                       continue
 
                   key = build_dedup_key(line)
@@ -544,31 +548,23 @@ jobs:
                   f"امنیتی={dropped_unsafe} | "
                   f"نامعتبر={dropped_invalid} | "
                   f"تکراری={dropped_dup} | "
-                  f"vmess(drop)={dropped_vmess}"
+                  f"vmess(drop)={dropped_vmess} | "
+                  f"کرش‌ساز(QUIC)={dropped_quic} | "
+                  f"بی‌استفاده={dropped_useless}"
               )
               return out
 
-          cleaned_hy2 = clean_and_dedup(raw_hy2_items, "Hy2")
           cleaned_vless = clean_and_dedup(raw_vless_trojan_items, "VLESS/Other")
 
-          print(f"✨ تعداد یکتای Hy2: {len(cleaned_hy2)}")
           print(f"✨ تعداد یکتای سایر: {len(cleaned_vless)}")
 
 
           # ═══════════════════════════════════════════════════════
           #  ●  ۱۱. ذخیرهٔ خروجی‌ها (بدون شماره‌گذاری)
           # ═══════════════════════════════════════════════════════
-          if not cleaned_hy2 and not cleaned_vless:
+          if not cleaned_vless:
               print("🛑 هیچ کانفیگی دریافت نشد — فایل‌های قبلی حفظ می‌شوند.")
               sys.exit(0)
-
-          if cleaned_hy2 or not file_non_empty("hy2_filtered.txt"):
-              with open("hy2_filtered.txt", "w", encoding="utf-8") as f:
-                  if cleaned_hy2:
-                      f.write("\n".join(cleaned_hy2) + "\n")
-              print(f"🎉 hy2_filtered.txt → {len(cleaned_hy2)} کانفیگ (بدون شماره)")
-          else:
-              print("🛡️ hy2_filtered.txt حفظ شد (اجرای بدون نتیجه).")
 
           if cleaned_vless or not file_non_empty("vless_trojan_filtered.txt"):
               with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
@@ -598,17 +594,11 @@ jobs:
           import random
           import ipaddress
 
-          # ═══════════════════════════════════════════════════════
-          #  ●  پیشوندهای تمیز Fastly برای جایگزینی
-          # ═══════════════════════════════════════════════════════
           TARGET_FASTLY_PREFIXES = [
               "199.232.",
               "146.75.",
           ]
 
-          # ═══════════════════════════════════════════════════════
-          #  ●  آی‌پی‌های تمیز Cloudflare
-          # ═══════════════════════════════════════════════════════
           CLEAN_CLOUDFLARE_IPS = [
               "104.16.28.212", "104.16.247.224", "104.16.142.211", "104.16.166.16",
               "104.25.10.113", "104.17.139.53", "104.19.173.221", "104.17.212.94",
@@ -625,9 +615,6 @@ jobs:
               "104.21.8.241", "104.18.113.242",
           ]
 
-          # ═══════════════════════════════════════════════════════
-          #  ●  دیتابیس کامل رنج‌های IPv4 شرکت Fastly
-          # ═══════════════════════════════════════════════════════
           FASTLY_CIDRS = [
               "23.235.32.0/20", "43.249.72.0/22", "103.244.50.0/24",
               "103.245.222.0/23", "103.245.224.0/24", "104.156.80.0/20",
@@ -637,9 +624,6 @@ jobs:
               "199.27.72.0/21", "199.232.0.0/16",
           ]
 
-          # ═══════════════════════════════════════════════════════
-          #  ●  دیتابیس کامل رنج‌های IPv4 شرکت Cloudflare
-          # ═══════════════════════════════════════════════════════
           CLOUDFLARE_CIDRS = [
               "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
               "104.16.0.0/13", "104.24.0.0/14", "108.162.192.0/18",
@@ -648,9 +632,6 @@ jobs:
               "190.93.240.0/20", "197.234.240.0/22", "198.41.128.0/17",
           ]
 
-          # ═══════════════════════════════════════════════════════
-          #  ●  تنظیمات و کش رنج‌ها
-          # ═══════════════════════════════════════════════════════
           IPS_PER_CONFIG = 5
           MIN_OCTET_3 = 1
           MAX_OCTET_3 = 254
@@ -660,9 +641,6 @@ jobs:
           _FASTLY_NETS = [ipaddress.ip_network(c) for c in FASTLY_CIDRS]
           _CF_NETS = [ipaddress.ip_network(c) for c in CLOUDFLARE_CIDRS]
 
-          # ═══════════════════════════════════════════════════════
-          #  ●  توابع کمکی
-          # ═══════════════════════════════════════════════════════
           def generate_random_fastly_ip():
               prefix = random.choice(TARGET_FASTLY_PREFIXES)
               a, b = prefix.strip(".").split(".")
@@ -685,9 +663,6 @@ jobs:
                   return True
               return _ip_in_nets(host, _CF_NETS)
 
-          # ═══════════════════════════════════════════════════════
-          #  ●  پردازش فایل و تزریق آی‌پی تمیز
-          # ═══════════════════════════════════════════════════════
           HOST_RE = re.compile(r'^([a-z]+://[^@]+@)([^:/?#]+)(.*)$', re.IGNORECASE)
 
           def process_file(filename):
@@ -736,9 +711,6 @@ jobs:
               print(f"   - تزریق Cloudflare: {cf_injected}")
               print(f"   - بدون تغییر:       {untouched}")
 
-          # ═══════════════════════════════════════════════════════
-          #  ●  اجرا روی فایل خروجی
-          # ═══════════════════════════════════════════════════════
           process_file("vless_trojan_filtered.txt")
           PYEOF
 
@@ -748,11 +720,6 @@ jobs:
       - name: Live Test and Filter Dead Servers
         timeout-minutes: 120
         run: |
-          # ╔════════════════════════════════════════════════════╗
-          # ║  🔘  کلید فعال/غیرفعال کردن تست پینگ           ║
-          # ║  ────────────────────────────────────────────────  ║
-          # ║  برای غیرفعال کردن تست، این مقدار را false کنید.   ║
-          # ╚════════════════════════════════════════════════════╝
           ENABLE_PING_TEST=true
 
           if [ "${ENABLE_PING_TEST:-false}" != "true" ]; then
@@ -774,7 +741,6 @@ jobs:
           # ────────────────────────────────────────────────────────
           # تست هوشمند و بهینه (فقط VLESS/Trojan - بدون کرش UDP)
           # ────────────────────────────────────────────────────────
-          # 🚨 تغییر ۳: hy2 از این لیست حذف شد چون تست نمی‌شود
           TARGETS=("vless_trojan")
 
           for TARGET in "${TARGETS[@]}"; do
@@ -1055,7 +1021,6 @@ jobs:
               )
 
           dedup_file("vless_trojan_filtered.txt", "vless_delays.log")
-          dedup_file("hy2_filtered.txt", "hy2_delays.log")
           PYEOF
 
       # ═══════════════════════════════════════════════════════
@@ -1103,7 +1068,6 @@ jobs:
               print(f"🏷️ {filename} → شماره‌گذاری شد ({len(out_lines)} کانفیگ)")
 
           number_file("vless_trojan_filtered.txt")
-          number_file("hy2_filtered.txt")
 
           if current_number > start_counter:
               last_saved = current_number - 1
@@ -1127,17 +1091,16 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add hy2_filtered.txt vless_trojan_filtered.txt counter.txt
+          git add vless_trojan_filtered.txt counter.txt
 
           if git diff --cached --quiet; then
             echo "ℹ️  تغییری برای commit وجود ندارد."
             exit 0
           fi
 
-          HY2_COUNT=$( [ -f hy2_filtered.txt ] && wc -l < hy2_filtered.txt || echo 0 )
           VLESS_COUNT=$( [ -f vless_trojan_filtered.txt ] && wc -l < vless_trojan_filtered.txt || echo 0 )
 
-          git commit -m "Update configs (hy2=${HY2_COUNT}, vless=${VLESS_COUNT}) [CI]"
+          git commit -m "Update configs (vless=${VLESS_COUNT}) [CI]"
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
           git push
           
