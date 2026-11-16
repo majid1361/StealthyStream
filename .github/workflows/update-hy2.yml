@@ -731,7 +731,7 @@ jobs:
             if [ -s "$INPUT_FILE" ]; then
               echo "🧪 تست $TARGET (سخت‌گیرانه: پینگ حداکثر ۳ ثانیه، ۲۰ ترد همزمان)..."
               
-              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 20 -v -o "$OUTPUT_FILE" 2>&1 | tee "$LOG_FILE" || true
+              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 20 -v -o "$OUTPUT_FILE" 2>&1 | grep -E "vless://|trojan://" | tee "$LOG_FILE" || true
 
               if [ -s "$OUTPUT_FILE" ]; then
                 sed -i '/^$/d' "$OUTPUT_FILE"
