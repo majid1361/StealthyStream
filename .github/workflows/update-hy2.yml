@@ -980,12 +980,10 @@ jobs:
             const status = '${{ job.status }}';
             const emoji = status === 'success' ? '✅' : '❌';
             
-            // تنظیم زمان دقیق به وقت تهران (فرمت: YYYY-MM-DD HH:mm:ss)
             const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tehran' });
             
             const title = `[AUTO-NOTIFY] Status: ${emoji} (${now}) IRST`;
             
-            // اضافه شدن منشن برای فعال کردن نوتیفیکیشن
             const body = `**Last Run Status:** ${emoji} ${status.toUpperCase()}\n**Time (IRST):** ${now}\n\n@majid1361`;
 
             const issues = await github.rest.issues.listForRepo({
@@ -1011,8 +1009,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: title,
-              body: body,
-              // اختصاص دادن پیام به خودت
-              assignees: ['majid1361']
+              body: body
             });
             console.log('New issue created successfully.');
