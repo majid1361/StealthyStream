@@ -725,7 +725,7 @@ jobs:
             if [ -s "$INPUT_FILE" ]; then
               echo "🧪 Live testing started (Max delay: 3000ms). Please wait, this takes a few minutes..."
               
-              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 4000 --prescan-workers 50 --mdelay 3000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
+              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 6000 --prescan-workers 50 --mdelay 5000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
 
               if [ -s "$OUTPUT_FILE" ]; then
                 sed -i '/^$/d' "$OUTPUT_FILE"
@@ -749,7 +749,7 @@ jobs:
           import time
           from urllib.parse import urlparse, parse_qs, unquote
 
-          KEEP_PER_GROUP = 2
+          KEEP_PER_GROUP = 3
 
           def split_host_port(netloc):
               if netloc.startswith("["):
@@ -839,7 +839,7 @@ jobs:
                   netloc = parsed.netloc.rsplit("@", 1)[1]
                   host, port = split_host_port(netloc)
                   start_time = time.time()
-                  socket.create_connection((host, int(port)), timeout=1.5).close()
+                  socket.create_connection((host, int(port)), timeout=3.0).close()
                   return int((time.time() - start_time) * 1000)
               except Exception:
                   return 1500
