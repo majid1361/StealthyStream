@@ -372,84 +372,73 @@ jobs:
           else: print("⚠️ fastly_clean_ips.txt not found.")
 
           FASTLY_CIDRS = [
-              "23.235.32.0/20",
-              "43.249.72.0/22",
-              "103.244.50.0/24",
-              "103.245.222.0/23",
-              "103.245.224.0/24",
-              "104.156.80.0/20",
-              "146.75.0.0/17",
-              "151.101.0.0/16",
-              "157.52.64.0/18",
-              "167.82.0.0/17",
-              "167.82.128.0/20",
-              "167.82.160.0/20",
-              "167.82.224.0/20",
-              "172.111.64.0/18",
-              "185.31.16.0/22",
-              "199.27.72.0/21",
-              "199.232.0.0/16"
+              "23.235.32.0/20", "43.249.72.0/22", "103.244.50.0/24",
+              "103.245.222.0/23", "103.245.224.0/24", "104.156.80.0/20",
+              "146.75.0.0/17", "151.101.0.0/16", "157.52.64.0/18",
+              "167.82.0.0/17", "167.82.128.0/20", "167.82.160.0/20",
+              "167.82.224.0/20", "172.111.64.0/18", "185.31.16.0/22",
+              "199.27.72.0/21", "199.232.0.0/16",
           ]
 
           CLOUDFLARE_CIDRS = [
-              "103.21.244.0/22",
-              "103.22.200.0/22",
-              "103.31.4.0/22",
-              "104.16.0.0/13",
-              "104.24.0.0/14",
-              "108.162.192.0/18",
-              "131.0.72.0/22",
-              "141.101.64.0/18",
-              "162.158.0.0/15",
-              "172.64.0.0/13",
-              "173.245.48.0/20",
-              "188.114.96.0/20",
-              "190.93.240.0/20",
-              "197.234.240.0/22",
-              "198.41.128.0/17"
+              "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+              "104.16.0.0/13", "104.24.0.0/14", "108.162.192.0/18",
+              "131.0.72.0/22", "141.101.64.0/18", "162.158.0.0/15",
+              "172.64.0.0/13", "173.245.48.0/20", "188.114.96.0/20",
+              "190.93.240.0/20", "197.234.240.0/22", "198.41.128.0/17",
           ]
 
           IPS_PER_CONFIG = 5
           _FASTLY_NETS = [ipaddress.ip_network(c) for c in FASTLY_CIDRS]
           _CF_NETS = [ipaddress.ip_network(c) for c in CLOUDFLARE_CIDRS]
 
-          def _ip_in_nets(host, nets):
-              try: ip = ipaddress.ip_address(host)
-              except ValueError: return False
-              return any(ip in net for net in nets)
+          def is_fastly_ip(host):
+              try: 
+                  ip = ipaddress.ip_address(host)
+                  return any(ip in net for net in _FASTLY_NETS)
+              except ValueError: 
+                  return False
 
-          def is_fastly_host(host):
-              if host.endswith(".fastly.net"): return True
-              return _ip_in_nets(host, _FASTLY_NETS)
+          def is_cloudflare_ip(host):
+              try: 
+                  ip = ipaddress.ip_address(host)
+                  return any(ip in net for net in _CF_NETS)
+              except ValueError: 
+                  return False
 
-          def is_cloudflare_host(host):
-              if host.endswith(".cloudflare.com") or host.endswith(".cloudflare.net"): return True
-              return _ip_in_nets(host, _CF_NETS)
-
-          HOST_RE = re.compile(r'^([a-z]+://[^@]+@)([^:/?#]+)(.*)$', re.IGNORECASE)
+          ADDRESS_RE = re.compile(r'^([a-z]+://[^@]+@)([^:/?#]+)(.*)$', re.IGNORECASE)
 
           def process_file(filename):
               if not os.path.exists(filename): return
               with open(filename, "r", encoding="utf-8") as f:
                   lines = [l.strip() for l in f if l.strip()]
-              new_lines, fastly_injected, cf_injected, untouched = [], 0, 0, 0
+              
+              new_lines, fastly_injected, cf_injected, passed_untouched = [], 0, 0, 0
+              
               for line in lines:
                   if not line.lower().startswith(("trojan://", "vless://")):
-                      new_lines.append(line); untouched += 1; continue
-                  match = HOST_RE.match(line)
+                      new_lines.append(line); passed_untouched += 1; continue
+                  
+                  match = ADDRESS_RE.match(line)
                   if not match:
-                      new_lines.append(line); untouched += 1; continue
+                      new_lines.append(line); passed_untouched += 1; continue
+                  
                   prefix, original_host, suffix = match.groups()
-                  if is_fastly_host(original_host) and CLEAN_FASTLY_IPS:
-                      for _ in range(IPS_PER_CONFIG): new_lines.append(f"{prefix}{random.choice(CLEAN_FASTLY_IPS)}{suffix}")
+
+                  if is_fastly_ip(original_host) and CLEAN_FASTLY_IPS:
+                      for _ in range(IPS_PER_CONFIG): 
+                          new_lines.append(f"{prefix}{random.choice(CLEAN_FASTLY_IPS)}{suffix}")
                       fastly_injected += 1
-                  elif is_cloudflare_host(original_host) and CLEAN_CLOUDFLARE_IPS:
-                      for _ in range(IPS_PER_CONFIG): new_lines.append(f"{prefix}{random.choice(CLEAN_CLOUDFLARE_IPS)}{suffix}")
+                  elif is_cloudflare_ip(original_host) and CLEAN_CLOUDFLARE_IPS:
+                      for _ in range(IPS_PER_CONFIG): 
+                          new_lines.append(f"{prefix}{random.choice(CLEAN_CLOUDFLARE_IPS)}{suffix}")
                       cf_injected += 1
                   else:
-                      new_lines.append(line); untouched += 1
+                      new_lines.append(line)
+                      passed_untouched += 1
+              
               with open(filename, "w", encoding="utf-8") as f: f.write("\n".join(new_lines) + "\n")
-              print(f"✅ {filename}:\n   - Fastly Injected: {fastly_injected}\n   - Cloudflare Injected: {cf_injected}\n   - Untouched: {untouched}")
+              print(f"✅ {filename}:\n   - Fastly Injected (x5): {fastly_injected}\n   - Cloudflare Injected (x5): {cf_injected}\n   - Passed untouched (Domains/Others): {passed_untouched}")
 
           process_file("vless_trojan_filtered.txt")
           PYEOF
@@ -494,7 +483,7 @@ jobs:
       # │  🧹  بخش ۴: حذف کانفیگ‌های تکراری (Deduplicate)                 │
       # └──────────────────────────────────────────────────────────────┘
       - name: Deduplicate After Live Test
-        if: env.ENABLE_DEDUPLICATE == 'true' # 👈 کلید جدید اینجا اعمال شد
+        if: env.ENABLE_DEDUPLICATE == 'true'
         run: |
           python - << 'PYEOF'
           import os, re, ipaddress, socket, time
@@ -527,8 +516,19 @@ jobs:
           def build_dedup_key(line):
               try: parsed = urlparse(line)
               except Exception: return None
+              
               protocol = (parsed.scheme or "").lower()
               if not protocol or not parsed.netloc or "@" not in parsed.netloc: return None
+
+              if "type=xhttp" in line.lower() or "extra=" in line.lower():
+                  try:
+                      user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
+                      uuid = unquote(user_info_raw).strip().lower()
+                      host, port = split_host_port(netloc)
+                      return ("xhttp", uuid, port, parsed.path)
+                  except Exception:
+                      return ("xhttp_raw", line.split("#")[0])
+
               user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
               user_info = unquote(user_info_raw).strip().lower()
               if not user_info: return None
@@ -602,14 +602,23 @@ jobs:
                       delay = get_delay(s)
                       groups.setdefault(key, []).append((delay, s))
                       alive_count += 1
+              
               out = []
               total_dropped = 0
+              
               for key, items in groups.items():
                   items.sort(key=lambda x: x[0])
-                  for delay, cfg in items[:KEEP_PER_GROUP]: out.append(cfg)
-                  total_dropped += max(0, len(items) - KEEP_PER_GROUP)
+                  
+                  if len(items) == 1:
+                      out.append(items[0][1])
+                  else:
+                      for delay, cfg in items[:KEEP_PER_GROUP]: 
+                          out.append(cfg)
+                      total_dropped += max(0, len(items) - KEEP_PER_GROUP)
+              
               with open(path, "w", encoding="utf-8") as f:
                   f.write("\n".join(out) + ("\n" if out else ""))
+              
               print(f"✅ Final healthy configs: {len(out)}")
               print(f"🧹 Dropped (dup/slow): {total_dropped}")
               print(f"📁 Unique server groups: {len(groups)}")
