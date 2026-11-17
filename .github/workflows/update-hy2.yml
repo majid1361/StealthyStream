@@ -9,7 +9,7 @@ on:
 env:
   ENABLE_GITHUB_FETCH: 'true'
   ENABLE_TELEGRAM_FETCH: 'true'
-  ENABLE_INJECT: 'true'
+  ENABLE_INJECT: 'false'
   ENABLE_LIVE_TEST: 'true'
   ENABLE_DEDUPLICATE: 'true'
 
