@@ -3,9 +3,15 @@ name: StealthyStream Multi-Source Aggregator
 on:
   workflow_dispatch:
 
-# ┌──────────────────────────────────────────────────────────────┐
-# │  ⚙️  پنل کنترل اصلی (Toggles) - true = روشن | false = خاموش    │
-# └──────────────────────────────────────────────────────────────┘
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║   ⚙️   پنل کنترل — بخش‌ها را فعال یا غیرفعال کنید                   ║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║   ENABLE_GITHUB_FETCH      ›   دریافت از گیت‌هاب                   ║
+# ║   ENABLE_TELEGRAM_FETCH    ›   دریافت از تلگرام                    ║
+# ║   ENABLE_INJECT            ›   تزریق IP تمیز CDN                  ║
+# ║   ENABLE_LIVE_TEST         ›   تست زنده سرورها                     ║
+# ║   ENABLE_DEDUPLICATE       ›   حذف تکراری‌ها                        ║
+# ╚══════════════════════════════════════════════════════════════════╝
 env:
   ENABLE_GITHUB_FETCH: 'true'
   ENABLE_TELEGRAM_FETCH: 'true'
@@ -26,34 +32,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-      - name: Checkout Repository
+      # ╔════════════════════════════════════════════════════════════╗
+      # ║   📦   آماده‌سازی پروژه                                     ║
+      # ╚════════════════════════════════════════════════════════════╝
+
+      - name: دریافت مخزن
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Setup Python
+      - name: نصب پایتون
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.12'
 
-      - name: Install Dependencies
+      - name: نصب کتابخانه‌های مورد نیاز
         run: |
-          python -m pip install --upgrade pip
-          pip install requests
+          python -m pip install --upgrade pip || echo "pip upgrade skipped"
+          pip install --retries 5 requests || { echo "requests install failed"; exit 1; }
 
-      # ┌──────────────────────────────────────────────────────────────┐
-      # │  📥  بخش ۱: دریافت کانفیگ‌ها (گیت‌هاب و تلگرام)                     │
-      # └──────────────────────────────────────────────────────────────┘
-      - name: Fetch, Deduplicate and Normalize Configs
+      # ╔════════════════════════════════════════════════════════════╗
+      # ║   📥   گام ۱   ┃   گردآوری و پالایش کانفیگ‌های خام              ║
+      # ╚════════════════════════════════════════════════════════════╝
+
+      - name: «گام ۱» گردآوری و پالایش کانفیگ‌های خام
         run: |
-          python - << 'PYEOF'
-          import os
-          import re
-          import html
-          import base64
-          import ipaddress
-          import sys
-          import time
+          python - << 'PYEOF' || true
+          import os, re, html, base64, ipaddress, sys, time
           import requests
           from urllib.parse import urlparse, parse_qs, quote, unquote
           from requests.adapters import HTTPAdapter
@@ -62,76 +67,92 @@ jobs:
           except ImportError:
               from requests.packages.urllib3.util.retry import Retry
 
+          T0 = time.time()
           ENABLE_GITHUB = os.getenv('ENABLE_GITHUB_FETCH', 'true') == 'true'
           ENABLE_TELEGRAM = os.getenv('ENABLE_TELEGRAM_FETCH', 'true') == 'true'
+          GITHUB_SOURCES_FILE = "sources_github.txt"
+          TELEGRAM_SOURCES_FILE = "sources_telegram.txt"
 
-          GITHUB_PUBLIC_URLS = [
-              "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/vless",
-              "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt",
-              "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs_tested.txt",
-              "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt",
-              "https://ogy.de/oneclickvpnkeys-free-sub",
-              "https://raw.githubusercontent.com/arshiacomplus/v2rayExtractor/refs/heads/main/mix/sub.html",
-              "https://raw.githubusercontent.com/barry-far/V2ray-config/main/All_Configs_Sub.txt",
-              "https://raw.githubusercontent.com/patterniha/Free-Configs/main/configs.txt",
-              "https://raw.githubusercontent.com/kasesm/Free-Config/refs/heads/main/all_raw.txt",
-              "https://raw.githubusercontent.com/Danialsamadi/v2go/main/AllConfigsSub.txt"
-          ]
-
-          TELEGRAM_CHANNELS = [
-              "prrofile_purple",
-              "mehrosaboran",
-              "persianvpnhub",
-              "daily_configs",
-              "allproconf",
-              "vpnplusee_free",
-              "oneclickvpnkeys",
-              "ConfigV2rayNG",
-              "V2rayuir",
-              "v2ray_configs_pools",
-              "V2ray_Alpha",
-              "DirectVPN",
-              "v2ray_dalghak1",
-              "proxy_kafee",
-              "FreakConfig",
-              "VmessProtocol",
-              "v2rayNG_Matsuri",
-              "VpnProxy4free",
-              "PrivateVPNs",
-              "free1_vpn",
-              "ConfigYab_FREE",
-              "makvaslim"
-          ]
-
-          TIMEOUT = 15
-          MAX_BYTES = 5_000_000
-          CHANNEL_SLEEP = 0.4
+          TIMEOUT, MAX_BYTES, CHANNEL_SLEEP = 15, 5_000_000, 0.4
           HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
           VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
           ALL_PROTOCOLS = VLESS_TROJAN_PROTOCOLS
-
           UNSAFE_PATTERNS = (
-              "insecure=1", "insecure=true", "allowinsecure=1", "allowinsecure=true",
-              "skip-cert-verify=1", "skip-cert-verify=true", "tlsinsecure=1",
-              "tlsinsecure=true", "mitm", "@127.0.0.1:", "@localhost:", "@0.0.0.0:"
+              "insecure=1","insecure=true","allowinsecure=1","allowinsecure=true",
+              "skip-cert-verify=1","skip-cert-verify=true","tlsinsecure=1",
+              "tlsinsecure=true","mitm","@127.0.0.1:","@localhost:","@0.0.0.0:"
           )
-
           CONFIG_REGEX = re.compile(r'(?:vless|trojan)://[^\s<>"\'`]+', re.IGNORECASE)
-          raw_vless_trojan_items = []
+          raw_items = []
 
-          session = requests.Session()
-          session.headers.update(HEADERS)
-          _retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504], allowed_methods=["GET"])
-          _adapter = HTTPAdapter(max_retries=_retry)
-          session.mount("https://", _adapter)
-          session.mount("http://", _adapter)
-
-          def file_non_empty(path):
-              if not os.path.exists(path): return False
+          def load_github_sources(path=GITHUB_SOURCES_FILE):
+              urls = []
+              if not os.path.exists(path):
+                  print(f"⚠️ «{path}» پیدا نشد.")
+                  return urls
               try:
                   with open(path, "r", encoding="utf-8") as f:
-                      return any(l.strip() for l in f)
-              except Exception: return False
+                      for raw in f:
+                          s = raw.strip()
+                          if not s or s.startswith("#"): continue
+                          if " #" in s: s = s.split(" #", 1)[0].strip()
+                          if not s: continue
+                          if s.startswith(("http://", "https://")):
+                              urls.append(s)
+                          else:
+                              print(f"⚠️ خط نامعتبر در {path}: {s[:60]}")
+                  print(f"🌐 گیت‌هاب: {len(urls)} سورس")
+              except Exception as e:
+                  print(f"⚠️ خطا در {path}: {e}")
+              return urls
+
+          def load_telegram_sources(path=TELEGRAM_SOURCES_FILE):
+              channels = []
+              if not os.path.exists(path):
+                  print(f"⚠️ «{path}» پیدا نشد.")
+                  return channels
+              try:
+                  with open(path, "r", encoding="utf-8") as f:
+                      for raw in f:
+                          s = raw.strip()
+                          if not s or s.startswith("#"): continue
+                          if " #" in s: s = s.split(" #", 1)[0].strip()
+                          if not s: continue
+                          name = s.replace("https://t.me/", "").replace("@", "").split("/")[0].strip()
+                          if name: channels.append(name)
+                  print(f"📡 تلگرام: {len(channels)} کانال")
+              except Exception as e:
+                  print(f"⚠️ خطا در {path}: {e}")
+              return channels
+
+          GITHUB_PUBLIC_URLS = load_github_sources()
+          TELEGRAM_CHANNELS = load_telegram_sources()
+
+          def atomic_write(path, content):
+              tmp = path + ".tmp"
+              try:
+                  with open(tmp, "w", encoding="utf-8") as f: f.write(content)
+                  os.replace(tmp, path)
+                  return True
+              except Exception as e:
+                  print(f"⚠️ write failed ({path}): {e}")
+                  if os.path.exists(tmp):
+                      try: os.remove(tmp)
+                      except Exception: pass
+                  return False
+
+          try:
+              session = requests.Session()
+              session.headers.update(HEADERS)
+              _retry = Retry(total=3, backoff_factor=1,
+                             status_forcelist=[429,500,502,503,504],
+                             allowed_methods=["GET"])
+              _adapter = HTTPAdapter(max_retries=_retry)
+              session.mount("https://", _adapter)
+              session.mount("http://", _adapter)
+          except Exception as e:
+              print(f"❌ session setup failed: {e}")
+              sys.exit(0)
 
           def decode_if_base64(text):
               stripped = text.strip()
@@ -148,82 +169,100 @@ jobs:
           def is_private_or_invalid_host(host):
               host = (host or "").strip("[]").strip().lower()
               if not host: return True
-              if host in {"localhost", "0.0.0.0", "::", "::1"}: return True
+              if host in {"localhost","0.0.0.0","::","::1"}: return True
               if host.endswith(".local") or host.endswith(".localhost"): return True
               try: ip = ipaddress.ip_address(host)
               except ValueError: return False
-              return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
+              return (ip.is_private or ip.is_loopback or ip.is_link_local
+                      or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
 
           def split_host_port(netloc):
               if netloc.startswith("["):
                   end = netloc.find("]")
                   if end != -1:
-                      host = netloc[1:end]
-                      port = netloc[end + 1:].lstrip(":") or "443"
-                      return host, port
+                      return netloc[1:end], (netloc[end+1:].lstrip(":") or "443")
               if ":" in netloc:
-                  host, port = netloc.rsplit(":", 1)
-                  return host, (port or "443")
+                  h, p = netloc.rsplit(":", 1); return h, (p or "443")
               return netloc, "443"
 
-          def has_unsafe_pattern(url_part):
-              low = url_part.lower()
-              return any(p in low for p in UNSAFE_PATTERNS)
+          def has_unsafe_pattern(u): return any(p in u.lower() for p in UNSAFE_PATTERNS)
 
           def build_dedup_key(line):
-              try: parsed = urlparse(line)
-              except Exception: return None
-              protocol = (parsed.scheme or "").lower()
-              if not protocol or not parsed.netloc or "@" not in parsed.netloc: return None
-              user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
-              user_info = unquote(user_info_raw).strip().lower()
-              if not user_info: return None
-              if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.", user_info): return None
-              if re.match(r"^[0-9a-f]{32}\.[0-9a-z]", user_info): return None
-              host, port = split_host_port(netloc)
-              host = unquote(host).strip("[]").lower().rstrip(".")
-              if is_private_or_invalid_host(host): return None
-              q = parse_qs(parsed.query, keep_blank_values=False)
+              try:
+                  parsed = urlparse(line)
+                  protocol = (parsed.scheme or "").lower()
+                  if not protocol or not parsed.netloc or "@" not in parsed.netloc: return None
 
-              def qv_raw(*keys):
-                  for k in keys:
-                      kl = k.lower()
-                      for actual, vals in q.items():
-                          if actual.lower() == kl and vals:
-                              v = vals[0]
-                              if v is not None and v != "": return v.strip()
-                  return ""
+                  low_line = line.lower()
+                  if "type=xhttp" in low_line or "extra=" in low_line:
+                      try:
+                          user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
+                          uuid = unquote(user_info_raw).strip().lower()
+                          _host, port = split_host_port(netloc)
+                          return ("xhttp", uuid, port, parsed.path)
+                      except Exception:
+                          return ("xhttp_raw", line.split("#")[0])
 
-              host_param = qv_raw("host").lower().rstrip(".")
-              if "/" in host_param or "?" in host_param: host_param = ""
-              sni = qv_raw("sni", "serverName", "peer", "server_name").lower().rstrip(".")
-              pbk = qv_raw("pbk", "publicKey", "public_key")
-              sid = qv_raw("sid", "shortId", "short_id")
-              net_type = qv_raw("type", "net").lower() or "tcp"
-              path = qv_raw("path", "serviceName", "service_name")
-              security = qv_raw("security").lower() or "none"
-              flow = qv_raw("flow").lower()
-              mode = qv_raw("mode").lower()
-              alpn = qv_raw("alpn").lower()
-              encryption = qv_raw("encryption").lower() or "none"
-              header_type = qv_raw("headerType", "headertype").lower()
-              if header_type == "none": header_type = ""
-              if protocol != "trojan" and security in ("", "none") and encryption in ("", "none"): return None
-              if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk): return None
-              if not path: path = "/"
-              elif "?" in path:
-                  base, query = path.split("?", 1)
-                  q_low = query.lower()
-                  branding = ("telegram", "planb_net", "marambashi", "tootffarangi", "v2ray_confiig", "evay_vpn", "mtmvpn", "bored_vpn", "iranping24", "mehrosaboran", "tehranargo", "dailyconfigs", "i10vpn", "b2hub", "amiraxvpn", "atovpn", "spiddy", "javidnamaniran", "arsalanvpn", "v2raxx", "mitivpn")
-                  is_branding = (not q_low or q_low.startswith("ed=") or any(t in q_low for t in branding))
-                  path = base if is_branding else (base + "?" + query)
-              if pbk or sid: identity = ("reality", pbk, sid, sni, flow)
-              elif host_param: identity = ("host", host_param, path, net_type, mode, alpn)
-              elif sni: identity = ("sni", sni, path, net_type, mode, alpn)
-              else: identity = ("uuid_only",)
-              return (protocol, user_info, port, identity, security, net_type, path, mode, alpn, encryption, header_type)
+                  user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
+                  user_info = unquote(user_info_raw).strip().lower()
+                  if not user_info: return None
+                  if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.", user_info): return None
+                  if re.match(r"^[0-9a-f]{32}\.[0-9a-z]", user_info): return None
+                  host, port = split_host_port(netloc)
+                  host = unquote(host).strip("[]").lower().rstrip(".")
+                  if is_private_or_invalid_host(host): return None
+                  q = parse_qs(parsed.query, keep_blank_values=False)
+
+                  def qv(*keys):
+                      for k in keys:
+                          kl = k.lower()
+                          for actual, vals in q.items():
+                              if actual.lower() == kl and vals:
+                                  v = vals[0]
+                                  if v is not None and v != "": return v.strip()
+                      return ""
+
+                  host_param = qv("host").lower().rstrip(".")
+                  if "/" in host_param or "?" in host_param: host_param = ""
+                  sni = qv("sni","serverName","peer","server_name").lower().rstrip(".")
+                  pbk = qv("pbk","publicKey","public_key")
+                  sid = qv("sid","shortId","short_id")
+                  net_type = qv("type","net").lower() or "tcp"
+                  path = qv("path","serviceName","service_name")
+                  security = qv("security").lower() or "none"
+                  flow = qv("flow").lower()
+                  mode = qv("mode").lower()
+                  alpn = qv("alpn").lower()
+                  encryption = qv("encryption").lower() or "none"
+                  header_type = qv("headerType","headertype").lower()
+                  if header_type == "none": header_type = ""
+                  if protocol != "trojan" and security in ("","none") and encryption in ("","none"): return None
+                  if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk): return None
+
+                  if not path: path = "/"
+                  elif "?" in path:
+                      base, query = path.split("?", 1)
+                      q_low = query.lower()
+                      branding = ("telegram","planb_net","marambashi","tootffarangi",
+                                  "v2ray_confiig","evay_vpn","mtmvpn","bored_vpn",
+                                  "iranping24","mehrosaboran","tehranargo","dailyconfigs",
+                                  "i10vpn","b2hub","amiraxvpn","atovpn","spiddy",
+                                  "javidnamaniran","arsalanvpn","v2raxx","mitivpn")
+                      is_branding = (not q_low or q_low.startswith("ed=") or any(t in q_low for t in branding))
+                      path = base if is_branding else (base + "?" + query)
+
+                  if pbk or sid: identity = ("reality", pbk, sid, sni, flow)
+                  elif host_param: identity = ("host", host_param, path, net_type, mode, alpn)
+                  elif sni: identity = ("sni", sni, path, net_type, mode, alpn)
+                  else: identity = ("uuid_only",)
+                  return (protocol, user_info, port, identity, security, net_type, path, mode, alpn, encryption, header_type)
+              except Exception:
+                  return None
 
           def fetch_mixed_urls(urls, label):
+              if not urls:
+                  print(f"⏭️ [{label}] خالی، رد شد.")
+                  return
               for raw_url in urls:
                   url = raw_url.split("#")[0].strip()
                   if not url: continue
@@ -231,473 +270,607 @@ jobs:
                       r = session.get(url, timeout=TIMEOUT)
                       if r.status_code != 200 or len(r.content) > MAX_BYTES: continue
                       content = decode_if_base64(r.text)
-                      lines = content.replace("\r", "").split("\n")
-                      other_added = 0
-                      seen_in_source = set()
-                      for line in lines:
+                      seen_in_source = set(); added = 0
+                      for line in content.replace("\r","").split("\n"):
                           s = line.strip()
                           if not s or s in seen_in_source: continue
-                          low = s.lower()
-                          if low.startswith(VLESS_TROJAN_PROTOCOLS):
-                              seen_in_source.add(s)
-                              raw_vless_trojan_items.append(s)
-                              other_added += 1
-                      print(f"✅ [{label}] Other: +{other_added}  ←  {url}")
-                  except Exception as e: print(f"❌ [{label}] Error: {e}")
+                          if s.lower().startswith(VLESS_TROJAN_PROTOCOLS):
+                              seen_in_source.add(s); raw_items.append(s); added += 1
+                      print(f"✅ [{label}] +{added}  ←  {url}")
+                  except Exception as e:
+                      print(f"❌ [{label}] {e}")
 
           def fetch_telegram_channels(channels):
-              print("\n📡 Fetching from Telegram channels...")
+              if not channels:
+                  print("⏭️ لیست تلگرام خالی، رد شد.")
+                  return
+              print("\n📡 شروع دریافت از تلگرام...")
               for channel in channels:
-                  name = channel.strip().replace("https://t.me/", "").replace("@", "").split("/")[0]
+                  name = channel.strip().replace("https://t.me/","").replace("@","").split("/")[0]
                   if not name: continue
-                  url = f"https://t.me/s/{name}"
                   try:
-                      r = session.get(url, timeout=TIMEOUT)
+                      r = session.get(f"https://t.me/s/{name}", timeout=TIMEOUT)
                       if r.status_code != 200:
-                          time.sleep(CHANNEL_SLEEP)
-                          continue
+                          time.sleep(CHANNEL_SLEEP); continue
                       text = re.sub(r'</?(?:div|br|p|blockquote|pre|code|hr|li|tr|td|th|h[1-6])[^>]*>', '\n', r.text, flags=re.IGNORECASE)
                       text = re.sub(r'<[^>]+>', '', text)
                       text = html.unescape(text)
                       configs = CONFIG_REGEX.findall(text)
-                      other_count = 0
-                      seen = set()
+                      seen = set(); count = 0
                       for cfg in configs:
                           c = cfg.strip().rstrip('.,;()[]{}\'"')
                           if not c or c in seen: continue
                           seen.add(c)
                           if c.lower().startswith(VLESS_TROJAN_PROTOCOLS):
-                              raw_vless_trojan_items.append(c)
-                              other_count += 1
-                      print(f"✅ @{name}: +{other_count}")
-                  except Exception as e: print(f"❌ @{name}: {e}")
-                  finally: time.sleep(CHANNEL_SLEEP)
+                              raw_items.append(c); count += 1
+                      print(f"✅ @{name}: +{count}")
+                  except Exception as e:
+                      print(f"❌ @{name}: {e}")
+                  finally:
+                      try: time.sleep(CHANNEL_SLEEP)
+                      except Exception: pass
 
-          if os.path.exists("custom.txt"):
-              try:
-                  with open("custom.txt", "r", encoding="utf-8") as f:
-                      for line in f.read().replace("\r", "").split("\n"):
-                          s = line.strip()
-                          if s and s.lower().startswith(VLESS_TROJAN_PROTOCOLS):
-                              raw_vless_trojan_items.append(s)
-                  print("✅ custom.txt loaded.")
-              except Exception as e: print(f"❌ custom.txt error: {e}")
+          try:
+              if os.path.exists("custom.txt"):
+                  try:
+                      with open("custom.txt","r",encoding="utf-8") as f:
+                          for line in f.read().replace("\r","").split("\n"):
+                              s = line.strip()
+                              if s and s.lower().startswith(VLESS_TROJAN_PROTOCOLS):
+                                  raw_items.append(s)
+                      print("✅ custom.txt بارگذاری شد.")
+                  except Exception as e: print(f"❌ custom.txt: {e}")
 
-          if ENABLE_GITHUB:
-              fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
-          else:
-              print("⏸️ GitHub fetch disabled by Toggle.")
+              if ENABLE_GITHUB:
+                  fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
+              else:
+                  print("⏸️ گیت‌هاب غیرفعال.")
 
-          if ENABLE_TELEGRAM:
-              fetch_telegram_channels(TELEGRAM_CHANNELS)
-          else:
-              print("⏸️ Telegram fetch disabled by Toggle.")
+              if ENABLE_TELEGRAM:
+                  fetch_telegram_channels(TELEGRAM_CHANNELS)
+              else:
+                  print("⏸️ تلگرام غیرفعال.")
+          except Exception as e:
+              print(f"❌ fetch loop: {e}")
 
           def clean_and_dedup(raw_list, label):
-              out = []
-              seen_exact = set()
-              dropped_unsafe = dropped_invalid = dropped_vmess = dropped_dup = dropped_quic = 0
+              out, seen_exact = [], set()
+              dropped = {"unsafe":0,"invalid":0,"vmess":0,"dup":0,"quic":0}
               for line in raw_list:
                   if not line: continue
-                  base = line.split("#", 1)[0].strip()
+                  base = line.split("#",1)[0].strip()
                   if not base: continue
                   low = base.lower()
-                  if base[:8].lower() == "vmess://":
-                      dropped_vmess += 1
-                      continue
-                  if has_unsafe_pattern(base):
-                      dropped_unsafe += 1
-                      continue
-                  if "type=quic" in low or "type=kcp" in low:
-                      dropped_quic += 1
-                      continue
+                  if base[:8].lower() == "vmess://": dropped["vmess"] += 1; continue
+                  if has_unsafe_pattern(base): dropped["unsafe"] += 1; continue
+                  if "type=quic" in low or "type=kcp" in low: dropped["quic"] += 1; continue
                   key = build_dedup_key(line)
-                  if key is None:
-                      dropped_invalid += 1
-                      continue
-                  if base in seen_exact:
-                      dropped_dup += 1
-                      continue
-                  seen_exact.add(base)
-                  out.append(base)
-              print(f"  • {label}: Kept={len(out)} | Unsafe={dropped_unsafe} | Invalid={dropped_invalid} | Dup={dropped_dup} | Vmess={dropped_vmess} | QUIC={dropped_quic}")
+                  if key is None: dropped["invalid"] += 1; continue
+                  if base in seen_exact: dropped["dup"] += 1; continue
+                  seen_exact.add(base); out.append(base)
+              print(f"  • {label}: Kept={len(out)} | Unsafe={dropped['unsafe']} | Invalid={dropped['invalid']} | Dup={dropped['dup']} | Vmess={dropped['vmess']} | QUIC={dropped['quic']}")
               return out
 
-          cleaned_vless = clean_and_dedup(raw_vless_trojan_items, "VLESS/Other")
+          try:
+              cleaned = clean_and_dedup(raw_items, "VLESS/Trojan")
+              if not cleaned:
+                  print("🛑 هیچ کانفیگی یافت نشد. فایل قبلی حفظ شد.")
+                  sys.exit(0)
+              content = "\n".join(cleaned) + "\n"
+              if atomic_write("vless_trojan_filtered.txt", content):
+                  print(f"🎉 vless_trojan_filtered.txt → {len(cleaned)} کانفیگ")
+              else:
+                  print("⚠️ نوشتن فایل خروجی ناموفق.")
+          except Exception as e:
+              print(f"❌ clean/write: {e}")
 
-          if not cleaned_vless:
-              print("🛑 No configs found. Keeping previous files.")
-              sys.exit(0)
-
-          with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
-              if cleaned_vless:
-                  f.write("\n".join(cleaned_vless) + "\n")
-          print(f"🎉 vless_trojan_filtered.txt → {len(cleaned_vless)} configs")
+          print(f"⏱️ زمان گام ۱: {time.time()-T0:.1f} ثانیه")
           PYEOF
 
-      # ┌──────────────────────────────────────────────────────────────┐
-      # │  🔄  بخش ۲: تزریق آی‌پی‌های تمیز (Fastly و Cloudflare)         │
-      # └──────────────────────────────────────────────────────────────┘
-      - name: Inject Clean CDN IPs
+      # ╔════════════════════════════════════════════════════════════╗
+      # ║   🔄   گام ۲   ┃   تزریق IPهای تمیز CDN                     ║
+      # ╚════════════════════════════════════════════════════════════╝
+
+      - name: «گام ۲» تزریق IPهای تمیز CDN
         if: env.ENABLE_INJECT == 'true'
         run: |
           ENABLE_IP_HOPPING=true
           if [ "${ENABLE_IP_HOPPING:-false}" != "true" ]; then
-            echo "⏸️ IP Hopping disabled."
-            exit 0
+            echo "⏸️ IP Hopping غیرفعال."; exit 0
           fi
-          python - << 'PYEOF'
-          import os, re, random, ipaddress
+          python - << 'PYEOF' || true
+          import os, re, random, ipaddress, time
 
-          CLEAN_CLOUDFLARE_IPS = []
-          if os.path.exists("cf_clean_ips.txt"):
+          T0 = time.time()
+
+          def load_ips(path):
+              ips = []
+              if not os.path.exists(path): return ips
               try:
-                  with open("cf_clean_ips.txt", "r", encoding="utf-8") as f:
+                  with open(path,"r",encoding="utf-8") as f:
                       for line in f:
                           ip = line.strip()
-                          if ip and not ip.startswith("#"): CLEAN_CLOUDFLARE_IPS.append(ip)
-                  print(f"✅ {len(CLEAN_CLOUDFLARE_IPS)} IPs loaded from cf_clean_ips.txt")
-              except Exception as e: print(f"⚠️ Error reading cf_clean_ips.txt: {e}")
-          else: print("⚠️ cf_clean_ips.txt not found.")
+                          if ip and not ip.startswith("#"): ips.append(ip)
+              except Exception as e:
+                  print(f"⚠️ خطا در {path}: {e}")
+              return ips
 
-          CLEAN_FASTLY_IPS = []
-          if os.path.exists("fastly_clean_ips.txt"):
-              try:
-                  with open("fastly_clean_ips.txt", "r", encoding="utf-8") as f:
-                      for line in f:
-                          ip = line.strip()
-                          if ip and not ip.startswith("#"): CLEAN_FASTLY_IPS.append(ip)
-                  print(f"✅ {len(CLEAN_FASTLY_IPS)} IPs loaded from fastly_clean_ips.txt")
-              except Exception as e: print(f"⚠️ Error reading fastly_clean_ips.txt: {e}")
-          else: print("⚠️ fastly_clean_ips.txt not found.")
+          CF_IPS = load_ips("cf_clean_ips.txt")
+          FASTLY_IPS = load_ips("fastly_clean_ips.txt")
+          print(f"✅ CF IPs: {len(CF_IPS)} | Fastly IPs: {len(FASTLY_IPS)}")
 
-          FASTLY_CIDRS = [
-              "23.235.32.0/20", "43.249.72.0/22", "103.244.50.0/24",
-              "103.245.222.0/23", "103.245.224.0/24", "104.156.80.0/20",
-              "146.75.0.0/17", "151.101.0.0/16", "157.52.64.0/18",
-              "167.82.0.0/17", "167.82.128.0/20", "167.82.160.0/20",
-              "167.82.224.0/20", "172.111.64.0/18", "185.31.16.0/22",
-              "199.27.72.0/21", "199.232.0.0/16",
-          ]
-
-          CLOUDFLARE_CIDRS = [
-              "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
-              "104.16.0.0/13", "104.24.0.0/14", "108.162.192.0/18",
-              "131.0.72.0/22", "141.101.64.0/18", "162.158.0.0/15",
-              "172.64.0.0/13", "173.245.48.0/20", "188.114.96.0/20",
-              "190.93.240.0/20", "197.234.240.0/22", "198.41.128.0/17",
-          ]
+          FASTLY_CIDRS = ["23.235.32.0/20","43.249.72.0/22","103.244.50.0/24",
+              "103.245.222.0/23","103.245.224.0/24","104.156.80.0/20","146.75.0.0/17",
+              "151.101.0.0/16","157.52.64.0/18","167.82.0.0/17","167.82.128.0/20",
+              "167.82.160.0/20","167.82.224.0/20","172.111.64.0/18","185.31.16.0/22",
+              "199.27.72.0/21","199.232.0.0/16"]
+          CF_CIDRS = ["103.21.244.0/22","103.22.200.0/22","103.31.4.0/22",
+              "104.16.0.0/13","104.24.0.0/14","108.162.192.0/18","131.0.72.0/22",
+              "141.101.64.0/18","162.158.0.0/15","172.64.0.0/13","173.245.48.0/20",
+              "188.114.96.0/20","190.93.240.0/20","197.234.240.0/22","198.41.128.0/17"]
 
           IPS_PER_CONFIG = 5
-          _FASTLY_NETS = [ipaddress.ip_network(c) for c in FASTLY_CIDRS]
-          _CF_NETS = [ipaddress.ip_network(c) for c in CLOUDFLARE_CIDRS]
+          try:
+              _F = [ipaddress.ip_network(c) for c in FASTLY_CIDRS]
+              _C = [ipaddress.ip_network(c) for c in CF_CIDRS]
+          except Exception as e:
+              print(f"❌ CIDR parse: {e}"); _F = []; _C = []
 
-          def is_fastly_ip(host):
-              try: 
-                  ip = ipaddress.ip_address(host)
-                  return any(ip in net for net in _FASTLY_NETS)
-              except ValueError: 
-                  return False
+          def is_fastly(h):
+              try: ip = ipaddress.ip_address(h); return any(ip in n for n in _F)
+              except Exception: return False
 
-          def is_cloudflare_ip(host):
-              try: 
-                  ip = ipaddress.ip_address(host)
-                  return any(ip in net for net in _CF_NETS)
-              except ValueError: 
-                  return False
+          def is_cf(h):
+              try: ip = ipaddress.ip_address(h); return any(ip in n for n in _C)
+              except Exception: return False
 
-          ADDRESS_RE = re.compile(r'^([a-z]+://[^@]+@)([^:/?#]+)(.*)$', re.IGNORECASE)
+          ADDR_RE = re.compile(r'^([a-z]+://[^@]+@)([^:/?#]+)(.*)$', re.IGNORECASE)
 
           def process_file(filename):
               if not os.path.exists(filename): return
-              with open(filename, "r", encoding="utf-8") as f:
-                  lines = [l.strip() for l in f if l.strip()]
-              
-              new_lines, fastly_injected, cf_injected, passed_untouched = [], 0, 0, 0
-              
+              try:
+                  with open(filename,"r",encoding="utf-8") as f:
+                      lines = [l.strip() for l in f if l.strip()]
+              except Exception as e:
+                  print(f"⚠️ خطا در {filename}: {e}"); return
+
+              new_lines = []; fastly_inj = cf_inj = untouched = 0
               for line in lines:
-                  if not line.lower().startswith(("trojan://", "vless://")):
-                      new_lines.append(line); passed_untouched += 1; continue
-                  
-                  match = ADDRESS_RE.match(line)
-                  if not match:
-                      new_lines.append(line); passed_untouched += 1; continue
-                  
-                  prefix, original_host, suffix = match.groups()
+                  if not line.lower().startswith(("trojan://","vless://")):
+                      new_lines.append(line); untouched += 1; continue
+                  m = ADDR_RE.match(line)
+                  if not m:
+                      new_lines.append(line); untouched += 1; continue
+                  prefix, host, suffix = m.groups()
+                  try:
+                      if is_fastly(host) and FASTLY_IPS:
+                          for _ in range(IPS_PER_CONFIG):
+                              new_lines.append(f"{prefix}{random.choice(FASTLY_IPS)}{suffix}")
+                          fastly_inj += 1
+                      elif is_cf(host) and CF_IPS:
+                          for _ in range(IPS_PER_CONFIG):
+                              new_lines.append(f"{prefix}{random.choice(CF_IPS)}{suffix}")
+                          cf_inj += 1
+                      else:
+                          new_lines.append(line); untouched += 1
+                  except Exception:
+                      new_lines.append(line); untouched += 1
 
-                  if is_fastly_ip(original_host) and CLEAN_FASTLY_IPS:
-                      for _ in range(IPS_PER_CONFIG): 
-                          new_lines.append(f"{prefix}{random.choice(CLEAN_FASTLY_IPS)}{suffix}")
-                      fastly_injected += 1
-                  elif is_cloudflare_ip(original_host) and CLEAN_CLOUDFLARE_IPS:
-                      for _ in range(IPS_PER_CONFIG): 
-                          new_lines.append(f"{prefix}{random.choice(CLEAN_CLOUDFLARE_IPS)}{suffix}")
-                      cf_injected += 1
-                  else:
-                      new_lines.append(line)
-                      passed_untouched += 1
-              
-              with open(filename, "w", encoding="utf-8") as f: f.write("\n".join(new_lines) + "\n")
-              print(f"✅ {filename}:\n   - Fastly Injected (x5): {fastly_injected}\n   - Cloudflare Injected (x5): {cf_injected}\n   - Passed untouched (Domains/Others): {passed_untouched}")
+              tmp = filename + ".tmp"
+              try:
+                  with open(tmp,"w",encoding="utf-8") as f:
+                      f.write("\n".join(new_lines) + ("\n" if new_lines else ""))
+                  os.replace(tmp, filename)
+                  print(f"✅ {filename}: Fastly(x5)={fastly_inj}, CF(x5)={cf_inj}, Untouched={untouched}")
+              except Exception as e:
+                  print(f"⚠️ write error {filename}: {e}")
+                  if os.path.exists(tmp):
+                      try: os.remove(tmp)
+                      except Exception: pass
 
-          process_file("vless_trojan_filtered.txt")
+          try: process_file("vless_trojan_filtered.txt")
+          except Exception as e: print(f"❌ process_file: {e}")
+
+          print(f"⏱️ زمان گام ۲: {time.time()-T0:.1f} ثانیه")
           PYEOF
 
-      # ┌──────────────────────────────────────────────────────────────┐
-      # │  🧪  بخش ۳: تست زنده (xray-knife) و حذف سرورهای مرده         │
-      # └──────────────────────────────────────────────────────────────┘
-      - name: Live Test and Filter Dead Servers
+      # ╔════════════════════════════════════════════════════════════╗
+      # ║   🧪   گام ۳   ┃   تست زنده و حذف سرورهای مرده              ║
+      # ╚════════════════════════════════════════════════════════════╝
+
+      - name: «گام ۳» تست زنده و حذف سرورهای مرده
         if: env.ENABLE_LIVE_TEST == 'true'
         timeout-minutes: 120
         run: |
           ENABLE_PING_TEST=true
           if [ "${ENABLE_PING_TEST:-false}" != "true" ]; then
-            echo "⏸️ Ping test disabled."; exit 0
+            echo "⏸️ تست غیرفعال."; exit 0
           fi
-          echo "🔧 Installing Xray..."
-          curl -sL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -o xray.zip
-          unzip -q -o xray.zip xray
-          chmod +x xray
-          sudo mv xray /usr/local/bin/xray || exit 0
-          
-          echo "📥 Downloading xray-knife..."
-          KNIFE_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest | grep -o '"browser_download_url": *"[^"]*linux-64[^"]*"' | cut -d '"' -f 4 | head -n 1)
-          wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || exit 0
-          
+
+          echo "🔧 نصب Xray-core..."
+          curl -sL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -o xray.zip \
+            || { echo "⚠️ دانلود Xray ناموفق"; exit 0; }
+          unzip -q -o xray.zip xray 2>/dev/null \
+            || { echo "⚠️ استخراج Xray ناموفق"; exit 0; }
+          chmod +x xray 2>/dev/null || { echo "⚠️ chmod Xray ناموفق"; exit 0; }
+          sudo mv xray /usr/local/bin/xray 2>/dev/null || { echo "⚠️ نصب Xray ناموفق"; exit 0; }
+          echo "✓ Xray نصب شد."
+
+          echo "📥 دانلود xray-knife..."
+          KNIFE_URL=$(curl -s https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest \
+            | grep -o '"browser_download_url": *"[^"]*linux-64[^"]*"' | cut -d '"' -f 4 | head -n 1)
+          if [ -z "$KNIFE_URL" ]; then echo "⚠️ URL پیدا نشد"; exit 0; fi
+          wget -q "$KNIFE_URL" -O knife.zip \
+            && unzip -q -o knife.zip \
+            && chmod +x xray-knife \
+            || { echo "⚠️ نصب xray-knife ناموفق"; exit 0; }
+          echo "✓ xray-knife نصب شد."
+
           TARGETS=("vless_trojan")
           for TARGET in "${TARGETS[@]}"; do
             INPUT_FILE="${TARGET}_filtered.txt"
             OUTPUT_FILE="${TARGET}_alive.txt"
             LOG_FILE="${TARGET}_delays.log"
-            if [ -s "$INPUT_FILE" ]; then
-              echo "🧪 Live testing started (Max delay: 5000ms)..."
-              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 6000 --prescan-workers 50 --mdelay 5000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
+            if [ ! -s "$INPUT_FILE" ]; then
+              echo "⏭️ $INPUT_FILE خالی."; continue
+            fi
+            echo "🧪 تست $INPUT_FILE (max delay 5000ms)..."
+            timeout --kill-after=60 5400 ./xray-knife http \
+              -f "$INPUT_FILE" \
+              --prescan --prescan-timeout 6000 --prescan-workers 50 \
+              --mdelay 5000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
+
+            if [ -s "$OUTPUT_FILE" ]; then
+              sed -i '/^$/d' "$OUTPUT_FILE" || true
               if [ -s "$OUTPUT_FILE" ]; then
-                sed -i '/^$/d' "$OUTPUT_FILE"
-                if [ -s "$OUTPUT_FILE" ]; then mv "$OUTPUT_FILE" "$INPUT_FILE"; fi
+                mv "$OUTPUT_FILE" "$INPUT_FILE" \
+                  && echo "✓ سالم: $(wc -l < "$INPUT_FILE")" \
+                  || echo "⚠️ جایگزینی ناموفق"
+              else
+                echo "⚠️ خروجی خالی، فایل اصلی حفظ شد."
+                rm -f "$OUTPUT_FILE" 2>/dev/null || true
               fi
+            else
+              echo "⚠️ تست خروجی نداد، فایل اصلی حفظ شد."
             fi
           done
 
-      # ┌──────────────────────────────────────────────────────────────┐
-      # │  🧹  بخش ۴: حذف کانفیگ‌های تکراری (Deduplicate)                 │
-      # └──────────────────────────────────────────────────────────────┘
-      - name: Deduplicate After Live Test
+      # ╔════════════════════════════════════════════════════════════╗
+      # ║   🧹   گام ۴   ┃   حذف تکراری‌های نهایی                     ║
+      # ╚════════════════════════════════════════════════════════════╝
+
+      - name: «گام ۴» حذف تکراری‌ها پس از تست
         if: env.ENABLE_DEDUPLICATE == 'true'
         run: |
-          python - << 'PYEOF'
+          python - << 'PYEOF' || true
           import os, re, ipaddress, socket, time
           from urllib.parse import urlparse, parse_qs, unquote
 
+          T0 = time.time()
           ENABLE_LIVE_TEST = os.getenv('ENABLE_LIVE_TEST', 'true') == 'true'
           KEEP_PER_GROUP = 3
+          NETWORK_BUDGET_SECONDS = 300
 
           def split_host_port(netloc):
               if netloc.startswith("["):
                   end = netloc.find("]")
                   if end != -1:
-                      host = netloc[1:end]
-                      port = netloc[end + 1:].lstrip(":") or "443"
-                      return host, port
+                      return netloc[1:end], (netloc[end+1:].lstrip(":") or "443")
               if ":" in netloc:
-                  host, port = netloc.rsplit(":", 1)
-                  return host, (port or "443")
+                  h, p = netloc.rsplit(":", 1); return h, (p or "443")
               return netloc, "443"
 
           def is_private_or_invalid_host(host):
               host = (host or "").strip("[]").strip().lower()
               if not host: return True
-              if host in {"localhost", "0.0.0.0", "::", "::1"}: return True
+              if host in {"localhost","0.0.0.0","::","::1"}: return True
               if host.endswith(".local") or host.endswith(".localhost"): return True
               try: ip = ipaddress.ip_address(host)
               except ValueError: return False
-              return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
+              return (ip.is_private or ip.is_loopback or ip.is_link_local
+                      or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
 
           def build_dedup_key(line):
-              try: parsed = urlparse(line)
-              except Exception: return None
-              
-              protocol = (parsed.scheme or "").lower()
-              if not protocol or not parsed.netloc or "@" not in parsed.netloc: return None
+              try:
+                  parsed = urlparse(line)
+                  protocol = (parsed.scheme or "").lower()
+                  if not protocol or not parsed.netloc or "@" not in parsed.netloc: return None
 
-              if "type=xhttp" in line.lower() or "extra=" in line.lower():
-                  try:
-                      user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
-                      uuid = unquote(user_info_raw).strip().lower()
-                      host, port = split_host_port(netloc)
-                      return ("xhttp", uuid, port, parsed.path)
-                  except Exception:
-                      return ("xhttp_raw", line.split("#")[0])
+                  low_line = line.lower()
+                  if "type=xhttp" in low_line or "extra=" in low_line:
+                      try:
+                          user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
+                          uuid = unquote(user_info_raw).strip().lower()
+                          _h, port = split_host_port(netloc)
+                          return ("xhttp", uuid, port, parsed.path)
+                      except Exception:
+                          return ("xhttp_raw", line.split("#")[0])
 
-              user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
-              user_info = unquote(user_info_raw).strip().lower()
-              if not user_info: return None
-              if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.", user_info): return None
-              if re.match(r"^[0-9a-f]{32}\.[0-9a-z]", user_info): return None
-              host, port = split_host_port(netloc)
-              host = unquote(host).strip("[]").lower().rstrip(".")
-              if is_private_or_invalid_host(host): return None
-              q = parse_qs(parsed.query, keep_blank_values=False)
+                  user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
+                  user_info = unquote(user_info_raw).strip().lower()
+                  if not user_info: return None
+                  if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.", user_info): return None
+                  if re.match(r"^[0-9a-f]{32}\.[0-9a-z]", user_info): return None
+                  host, port = split_host_port(netloc)
+                  host = unquote(host).strip("[]").lower().rstrip(".")
+                  if is_private_or_invalid_host(host): return None
+                  q = parse_qs(parsed.query, keep_blank_values=False)
 
-              def qv_raw(*keys):
-                  for k in keys:
-                      kl = k.lower()
-                      for actual, vals in q.items():
-                          if actual.lower() == kl and vals:
-                              v = vals[0]
-                              if v is not None and v != "": return v.strip()
-                  return ""
+                  def qv(*keys):
+                      for k in keys:
+                          kl = k.lower()
+                          for actual, vals in q.items():
+                              if actual.lower() == kl and vals:
+                                  v = vals[0]
+                                  if v is not None and v != "": return v.strip()
+                      return ""
 
-              host_param = qv_raw("host").lower().rstrip(".")
-              if "/" in host_param or "?" in host_param: host_param = ""
-              sni = qv_raw("sni", "serverName", "peer", "server_name").lower().rstrip(".")
-              pbk = qv_raw("pbk", "publicKey", "public_key")
-              sid = qv_raw("sid", "shortId", "short_id")
-              net_type = qv_raw("type", "net").lower() or "tcp"
-              path = qv_raw("path", "serviceName", "service_name")
-              security = qv_raw("security").lower() or "none"
-              flow = qv_raw("flow").lower()
-              mode = qv_raw("mode").lower()
-              alpn = qv_raw("alpn").lower()
-              encryption = qv_raw("encryption").lower() or "none"
-              header_type = qv_raw("headerType", "headertype").lower()
-              if header_type == "none": header_type = ""
-              if protocol != "trojan" and security in ("", "none") and encryption in ("", "none"): return None
-              if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk): return None
-              if not path: path = "/"
-              elif "?" in path:
-                  base, query = path.split("?", 1)
-                  q_low = query.lower()
-                  branding = ("telegram", "planb_net", "marambashi", "tootffarangi", "v2ray_confiig", "evay_vpn", "mtmvpn", "bored_vpn", "iranping24", "mehrosaboran", "tehranargo", "dailyconfigs", "i10vpn", "b2hub", "amiraxvpn", "atovpn", "spiddy", "javidnamaniran", "arsalanvpn", "v2raxx", "mitivpn")
-                  is_branding = (not q_low or q_low.startswith("ed=") or any(t in q_low for t in branding))
-                  path = base if is_branding else (base + "?" + query)
-              if pbk or sid: identity = ("reality", pbk, sid, sni, flow)
-              elif host_param: identity = ("host", host_param, path, net_type, mode, alpn)
-              elif sni: identity = ("sni", sni, path, net_type, mode, alpn)
-              else: identity = ("uuid_only",)
-              return (protocol, user_info, port, identity, security, net_type, path, mode, alpn, encryption, header_type)
+                  host_param = qv("host").lower().rstrip(".")
+                  if "/" in host_param or "?" in host_param: host_param = ""
+                  sni = qv("sni","serverName","peer","server_name").lower().rstrip(".")
+                  pbk = qv("pbk","publicKey","public_key")
+                  sid = qv("sid","shortId","short_id")
+                  net_type = qv("type","net").lower() or "tcp"
+                  path = qv("path","serviceName","service_name")
+                  security = qv("security").lower() or "none"
+                  flow = qv("flow").lower()
+                  mode = qv("mode").lower()
+                  alpn = qv("alpn").lower()
+                  encryption = qv("encryption").lower() or "none"
+                  header_type = qv("headerType","headertype").lower()
+                  if header_type == "none": header_type = ""
+                  if protocol != "trojan" and security in ("","none") and encryption in ("","none"): return None
+                  if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk): return None
+
+                  if not path: path = "/"
+                  elif "?" in path:
+                      base, query = path.split("?", 1)
+                      q_low = query.lower()
+                      branding = ("telegram","planb_net","marambashi","tootffarangi",
+                                  "v2ray_confiig","evay_vpn","mtmvpn","bored_vpn",
+                                  "iranping24","mehrosaboran","tehranargo","dailyconfigs",
+                                  "i10vpn","b2hub","amiraxvpn","atovpn","spiddy",
+                                  "javidnamaniran","arsalanvpn","v2raxx","mitivpn")
+                      is_branding = (not q_low or q_low.startswith("ed=") or any(t in q_low for t in branding))
+                      path = base if is_branding else (base + "?" + query)
+
+                  if pbk or sid: identity = ("reality", pbk, sid, sni, flow)
+                  elif host_param: identity = ("host", host_param, path, net_type, mode, alpn)
+                  elif sni: identity = ("sni", sni, path, net_type, mode, alpn)
+                  else: identity = ("uuid_only",)
+                  return (protocol, user_info, port, identity, security, net_type, path, mode, alpn, encryption, header_type)
+              except Exception:
+                  return None
+
+          _budget_start = time.time()
 
           def get_delay(line):
               if not ENABLE_LIVE_TEST: return 0
+              if time.time() - _budget_start > NETWORK_BUDGET_SECONDS:
+                  return 9999
               try:
                   parsed = urlparse(line)
                   if "@" not in parsed.netloc: return 9999
                   netloc = parsed.netloc.rsplit("@", 1)[1]
                   host, port = split_host_port(netloc)
-                  start_time = time.time()
-                  socket.create_connection((host, int(port)), timeout=3.0).close()
-                  return int((time.time() - start_time) * 1000)
-              except Exception: return 1500
+                  try:
+                      port_i = int(port)
+                  except Exception:
+                      return 9999
+                  start = time.time()
+                  socket.create_connection((host, port_i), timeout=3.0).close()
+                  return int((time.time() - start) * 1000)
+              except Exception:
+                  return 9999
 
           def dedup_file(path):
               if not os.path.exists(path): return
+              try:
+                  with open(path,"r",encoding="utf-8") as f:
+                      raw_lines = [l.strip() for l in f if l.strip()]
+              except Exception as e:
+                  print(f"⚠️ خطا در {path}: {e}"); return
+              if not raw_lines: return
+
               groups = {}
-              alive_count = 0
-              with open(path, "r", encoding="utf-8") as f:
-                  for line in f:
-                      s = line.strip()
-                      if not s: continue
-                      key = build_dedup_key(s)
-                      if key is None: continue
-                      delay = get_delay(s)
-                      groups.setdefault(key, []).append((delay, s))
-                      alive_count += 1
-              
-              out = []
-              total_dropped = 0
-              
+              for s in raw_lines:
+                  key = build_dedup_key(s)
+                  if key is None: continue
+                  delay = get_delay(s)
+                  groups.setdefault(key, []).append((delay, s))
+
+              out = []; total_dropped = 0
               for key, items in groups.items():
                   items.sort(key=lambda x: x[0])
-                  
                   if len(items) == 1:
                       out.append(items[0][1])
                   else:
-                      for delay, cfg in items[:KEEP_PER_GROUP]: 
+                      for _, cfg in items[:KEEP_PER_GROUP]:
                           out.append(cfg)
                       total_dropped += max(0, len(items) - KEEP_PER_GROUP)
-              
-              with open(path, "w", encoding="utf-8") as f:
-                  f.write("\n".join(out) + ("\n" if out else ""))
-              
-              print(f"✅ Final healthy configs: {len(out)}")
-              print(f"🧹 Dropped (dup/slow): {total_dropped}")
-              print(f"📁 Unique server groups: {len(groups)}")
 
-          dedup_file("vless_trojan_filtered.txt")
+              tmp = path + ".tmp"
+              try:
+                  with open(tmp,"w",encoding="utf-8") as f:
+                      f.write("\n".join(out) + ("\n" if out else ""))
+                  os.replace(tmp, path)
+                  print(f"✅ سالم نهایی: {len(out)}")
+                  print(f"🧹 حذف‌شده: {total_dropped}")
+                  print(f"📁 گروه‌های یکتا: {len(groups)}")
+              except Exception as e:
+                  print(f"⚠️ خطا در نوشتن {path}: {e}")
+                  if os.path.exists(tmp):
+                      try: os.remove(tmp)
+                      except Exception: pass
+
+          try: dedup_file("vless_trojan_filtered.txt")
+          except Exception as e: print(f"❌ dedup: {e}")
+
+          print(f"⏱️ زمان گام ۴: {time.time()-T0:.1f} ثانیه")
           PYEOF
 
-      # ┌──────────────────────────────────────────────────────────────┐
-      # │  🔢  بخش ۵: شماره‌گذاری نهایی و ذخیره شمارنده                     │
-      # └──────────────────────────────────────────────────────────────┘
-      - name: Numbering and Save Counter
+      # ╔════════════════════════════════════════════════════════════╗
+      # ║   🔢   گام ۵   ┃   شماره‌گذاری و ذخیره شمارنده                ║
+      # ╚════════════════════════════════════════════════════════════╝
+
+      - name: «گام ۵» شماره‌گذاری و ذخیره شمارنده
         run: |
-          python - << 'PYEOF'
-          import os
+          python - << 'PYEOF' || true
+          import os, time
           from urllib.parse import quote
+
+          T0 = time.time()
           counter_file = "counter.txt"
           start_counter = 1
-          if os.path.exists(counter_file):
-              try:
-                  with open(counter_file, "r", encoding="utf-8") as f: txt = f.read().strip()
+          try:
+              if os.path.exists(counter_file):
+                  with open(counter_file,"r",encoding="utf-8") as f:
+                      txt = f.read().strip()
                   if txt.isdigit(): start_counter = int(txt) + 1
-              except Exception: pass
+          except Exception as e:
+              print(f"⚠️ خطا در شمارنده: {e}")
+
           tag_prefix = quote("⚡ULTRA-TITAN-SRV-")
           current_number = start_counter
+
           def number_file(filename):
               global current_number
-              if not os.path.exists(filename): return
-              with open(filename, "r", encoding="utf-8") as f: lines = [l.strip() for l in f if l.strip()]
-              if not lines: return
+              if not os.path.exists(filename): return False
+              try:
+                  with open(filename,"r",encoding="utf-8") as f:
+                      lines = [l.strip() for l in f if l.strip()]
+              except Exception as e:
+                  print(f"⚠️ خطا در {filename}: {e}"); return False
+              if not lines: return False
+
               out_lines = []
               for cfg in lines:
                   base = cfg.split("#", 1)[0].strip()
                   out_lines.append(f"{base}#{tag_prefix}{current_number}")
                   current_number += 1
-              with open(filename, "w", encoding="utf-8") as f: f.write("\n".join(out_lines) + "\n")
-              print(f"🏷️ {filename} → Numbered ({len(out_lines)} configs)")
-          number_file("vless_trojan_filtered.txt")
-          if current_number > start_counter: last_saved = current_number - 1
-          elif start_counter > 1: last_saved = start_counter - 1
-          else: last_saved = 0
-          with open(counter_file + ".tmp", "w", encoding="utf-8") as f: f.write(str(last_saved))
-          os.replace(counter_file + ".tmp", counter_file)
-          print(f"🔢 Final counter: {start_counter} → {last_saved}")
+
+              tmp = filename + ".tmp"
+              try:
+                  with open(tmp,"w",encoding="utf-8") as f:
+                      f.write("\n".join(out_lines) + "\n")
+                  os.replace(tmp, filename)
+                  print(f"🏷️ {filename} → {len(out_lines)} کانفیگ")
+                  return True
+              except Exception as e:
+                  print(f"⚠️ خطا در {filename}: {e}")
+                  if os.path.exists(tmp):
+                      try: os.remove(tmp)
+                      except Exception: pass
+                  return False
+
+          try:
+              wrote = number_file("vless_trojan_filtered.txt")
+              if wrote and current_number > start_counter:
+                  last_saved = current_number - 1
+                  tmp = counter_file + ".tmp"
+                  try:
+                      with open(tmp,"w",encoding="utf-8") as f: f.write(str(last_saved))
+                      os.replace(tmp, counter_file)
+                      print(f"🔢 شمارنده: {start_counter} → {last_saved}")
+                  except Exception as e:
+                      print(f"⚠️ خطا در شمارنده: {e}")
+              else:
+                  print("ℹ️ کانفیگ جدیدی نبود.")
+          except Exception as e:
+              print(f"❌ شماره‌گذاری: {e}")
+
+          print(f"⏱️ زمان گام ۵: {time.time()-T0:.1f} ثانیه")
           PYEOF
 
-      # ┌──────────────────────────────────────────────────────────────┐
-      # │  💾  بخش ۶: ثبت و ارسال تغییرات (Commit & Push)                │
-      # └──────────────────────────────────────────────────────────────┘
-      - name: Commit and Push Changes
+      # ╔════════════════════════════════════════════════════════════╗
+      # ║   💾   گام ۶   ┃   ثبت و ارسال تغییرات                     ║
+      # ╚════════════════════════════════════════════════════════════╝
+
+      - name: «گام ۶» ثبت و ارسال تغییرات
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add vless_trojan_filtered.txt counter.txt
+
+          if [ ! -f vless_trojan_filtered.txt ]; then
+            echo "ℹ️ فایل خروجی وجود ندارد."; exit 0
+          fi
+
+          git add vless_trojan_filtered.txt
+          [ -f counter.txt ] && git add counter.txt
+
           if git diff --cached --quiet; then
-            echo "ℹ️ No changes to commit."
+            echo "ℹ️ تغییری برای commit نیست."; exit 0
+          fi
+
+          VLESS_COUNT=$(wc -l < vless_trojan_filtered.txt 2>/dev/null || echo 0)
+          git commit -m "Update configs (vless=${VLESS_COUNT}) [CI]" || { echo "⚠️ commit ناموفق"; exit 0; }
+
+          if ! timeout 60 git pull --rebase --autostash origin "${GITHUB_REF_NAME}"; then
+            echo "⚠️ pull ناموفق، abort..."
+            git rebase --abort 2>/dev/null || true
             exit 0
           fi
-          VLESS_COUNT=$( [ -f vless_trojan_filtered.txt ] && wc -l < vless_trojan_filtered.txt || echo 0 )
-          git commit -m "Update configs (vless=${VLESS_COUNT}) [CI]"
-          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
-          git push
-          
-      # ┌──────────────────────────────────────────────────────────────┐
-      # │  🔔  بخش ۷: ساخت نوتیفیکیشن جدید در Issues                     │
-      # └──────────────────────────────────────────────────────────────┘
-      - name: Create New Notification Issue
+
+          if timeout 60 git push; then
+            echo "✓ push موفق."
+          else
+            echo "⚠️ push ناموفق."
+          fi
+
+      # ╔════════════════════════════════════════════════════════════╗
+      # ║   🔔   گام ۷   ┃   ارسال نوتیفیکیشن به Issues              ║
+      # ╚════════════════════════════════════════════════════════════╝
+
+      - name: «گام ۷» ارسال نوتیفیکیشن به Issues
         if: always()
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |
-            const status = '${{ job.status }}';
-            const emoji = status === 'success' ? '✅' : '❌';
-            const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tehran' });
-            const title = `[AUTO-NOTIFY] Status: ${emoji} (${now}) IRST`;
-            const body = `**Last Run Status:** ${emoji} ${status.toUpperCase()}\n**Time (IRST):** ${now}\n\n@majid1361`;
-            const issues = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 100 });
-            const oldNotifyIssues = issues.data.filter(issue => issue.title.includes('[AUTO-NOTIFY]'));
-            for (const issue of oldNotifyIssues) {
-              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, state: 'closed' });
+            try {
+              const status = '${{ job.status }}';
+              const emoji = status === 'success' ? '✅' : '❌';
+              const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tehran' });
+              const title = `[AUTO-NOTIFY] آخرین وضعیت: ${emoji} (${now})`;
+              const body = `**وضعیت:** ${emoji} ${status.toUpperCase()}\n**زمان (تهران):** ${now}\n\n@majid1361`;
+
+              let existing = null;
+              try {
+                const issues = await github.rest.issues.listForRepo({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  state: 'open', per_page: 100
+                });
+                existing = issues.data.find(i => i.title && i.title.includes('[AUTO-NOTIFY]'));
+              } catch (e) { console.log(`list issues failed: ${e.message}`); }
+
+              if (existing) {
+                try {
+                  await github.rest.issues.update({
+                    owner: context.repo.owner, repo: context.repo.repo,
+                    issue_number: existing.number,
+                    title: title,
+                    body: body
+                  });
+                  console.log(`✓ Issue #${existing.number} آپدیت شد.`);
+                } catch (e) { console.log(`update failed: ${e.message}`); }
+
+                try {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner, repo: context.repo.repo,
+                    issue_number: existing.number,
+                    body: `🔄 **اجرای جدید** — ${emoji} ${status.toUpperCase()} — ${now}\n\n@majid1361`
+                  });
+                  console.log(`✓ کامنت جدید اضافه شد.`);
+                } catch (e) { console.log(`comment failed: ${e.message}`); }
+              } else {
+                try {
+                  await github.rest.issues.create({
+                    owner: context.repo.owner, repo: context.repo.repo,
+                    title: title, body: body
+                  });
+                  console.log('✓ Issue جدید ساخته شد.');
+                } catch (e) { console.log(`create failed: ${e.message}`); }
+              }
+            } catch (e) {
+              console.log(`fatal: ${e.message}`);
             }
-            await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title: title, body: body });
-            console.log('New issue created successfully.');
