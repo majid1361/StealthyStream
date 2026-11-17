@@ -36,17 +36,17 @@ jobs:
       # ║   📦   آماده‌سازی پروژه                                     ║
       # ╚════════════════════════════════════════════════════════════╝
 
-      - name: دریافت مخزن
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: نصب پایتون
+      - name: Setup Python Environment
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: نصب کتابخانه‌های مورد نیاز
+      - name: Install Required Packages
         run: |
           python -m pip install --upgrade pip || echo "pip upgrade skipped"
           pip install --retries 5 requests || { echo "requests install failed"; exit 1; }
@@ -55,7 +55,7 @@ jobs:
       # ║   📥   گام ۱   ┃   گردآوری و پالایش کانفیگ‌های خام              ║
       # ╚════════════════════════════════════════════════════════════╝
 
-      - name: «گام ۱» گردآوری و پالایش کانفیگ‌های خام
+      - name: "Step 1 » Fetch & Filter Configs"
         run: |
           python - << 'PYEOF' || true
           import os, re, html, base64, ipaddress, sys, time
@@ -371,7 +371,7 @@ jobs:
       # ║   🔄   گام ۲   ┃   تزریق IPهای تمیز CDN                     ║
       # ╚════════════════════════════════════════════════════════════╝
 
-      - name: «گام ۲» تزریق IPهای تمیز CDN
+      - name: "Step 2 » Inject Clean CDN IPs"
         if: env.ENABLE_INJECT == 'true'
         run: |
           ENABLE_IP_HOPPING=true
@@ -478,7 +478,7 @@ jobs:
       # ║   🧪   گام ۳   ┃   تست زنده و حذف سرورهای مرده              ║
       # ╚════════════════════════════════════════════════════════════╝
 
-      - name: «گام ۳» تست زنده و حذف سرورهای مرده
+      - name: "Step 3 » Live Test & Filter Dead Servers"
         if: env.ENABLE_LIVE_TEST == 'true'
         timeout-minutes: 120
         run: |
@@ -497,7 +497,8 @@ jobs:
           echo "✓ Xray نصب شد."
 
           echo "📥 دانلود xray-knife..."
-          KNIFE_URL=$(curl -s https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest \
+          KNIFE_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest \
             | grep -o '"browser_download_url": *"[^"]*linux-64[^"]*"' | cut -d '"' -f 4 | head -n 1)
           if [ -z "$KNIFE_URL" ]; then echo "⚠️ URL پیدا نشد"; exit 0; fi
           wget -q "$KNIFE_URL" -O knife.zip \
@@ -539,7 +540,7 @@ jobs:
       # ║   🧹   گام ۴   ┃   حذف تکراری‌های نهایی                     ║
       # ╚════════════════════════════════════════════════════════════╝
 
-      - name: «گام ۴» حذف تکراری‌ها پس از تست
+      - name: "Step 4 » Deduplicate Tested Configs"
         if: env.ENABLE_DEDUPLICATE == 'true'
         run: |
           python - << 'PYEOF' || true
@@ -713,7 +714,7 @@ jobs:
       # ║   🔢   گام ۵   ┃   شماره‌گذاری و ذخیره شمارنده                ║
       # ╚════════════════════════════════════════════════════════════╝
 
-      - name: «گام ۵» شماره‌گذاری و ذخیره شمارنده
+      - name: "Step 5 » Numbering & Save Counter"
         run: |
           python - << 'PYEOF' || true
           import os, time
@@ -786,7 +787,7 @@ jobs:
       # ║   💾   گام ۶   ┃   ثبت و ارسال تغییرات                     ║
       # ╚════════════════════════════════════════════════════════════╝
 
-      - name: «گام ۶» ثبت و ارسال تغییرات
+      - name: "Step 6 » Commit & Push Changes"
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -821,7 +822,7 @@ jobs:
       # ║   🔔   گام ۷   ┃   ارسال نوتیفیکیشن به Issues              ║
       # ╚════════════════════════════════════════════════════════════╝
 
-      - name: «گام ۷» ارسال نوتیفیکیشن به Issues
+      - name: "Step 7 » Send Issue Notification"
         if: always()
         continue-on-error: true
         uses: actions/github-script@v7
