@@ -574,11 +574,6 @@ jobs:
           import random
           import ipaddress
 
-          TARGET_FASTLY_PREFIXES = [
-              "199.232.",
-              "146.75.",
-          ]
-
           CLEAN_CLOUDFLARE_IPS = []
           if os.path.exists("cf_clean_ips.txt"):
               try:
@@ -592,6 +587,20 @@ jobs:
                   print(f"⚠️ Error reading cf_clean_ips.txt: {e}")
           else:
               print("⚠️ cf_clean_ips.txt not found.")
+
+          CLEAN_FASTLY_IPS = []
+          if os.path.exists("fastly_clean_ips.txt"):
+              try:
+                  with open("fastly_clean_ips.txt", "r", encoding="utf-8") as f:
+                      for line in f:
+                          ip = line.strip()
+                          if ip and not ip.startswith("#"):
+                              CLEAN_FASTLY_IPS.append(ip)
+                  print(f"✅ {len(CLEAN_FASTLY_IPS)} IPs loaded from fastly_clean_ips.txt")
+              except Exception as e:
+                  print(f"⚠️ Error reading fastly_clean_ips.txt: {e}")
+          else:
+              print("⚠️ fastly_clean_ips.txt not found.")
 
           FASTLY_CIDRS = [
               "23.235.32.0/20", "43.249.72.0/22", "103.244.50.0/24",
@@ -611,18 +620,8 @@ jobs:
           ]
 
           IPS_PER_CONFIG = 5
-          MIN_OCTET_3 = 1
-          MAX_OCTET_3 = 254
-          MIN_OCTET_4 = 10
-          MAX_OCTET_4 = 200
-
           _FASTLY_NETS = [ipaddress.ip_network(c) for c in FASTLY_CIDRS]
           _CF_NETS = [ipaddress.ip_network(c) for c in CLOUDFLARE_CIDRS]
-
-          def generate_random_fastly_ip():
-              prefix = random.choice(TARGET_FASTLY_PREFIXES)
-              a, b = prefix.strip(".").split(".")
-              return f"{a}.{b}.{random.randint(MIN_OCTET_3, MAX_OCTET_3)}.{random.randint(MIN_OCTET_4, MAX_OCTET_4)}"
 
           def _ip_in_nets(host, nets):
               try:
@@ -669,14 +668,16 @@ jobs:
 
                   prefix, original_host, suffix = match.groups()
 
-                  if is_fastly_host(original_host):
+                  if is_fastly_host(original_host) and CLEAN_FASTLY_IPS:
                       for _ in range(IPS_PER_CONFIG):
-                          new_lines.append(f"{prefix}{generate_random_fastly_ip()}{suffix}")
+                          new_lines.append(f"{prefix}{random.choice(CLEAN_FASTLY_IPS)}{suffix}")
                       fastly_injected += 1
-                  elif CLEAN_CLOUDFLARE_IPS and is_cloudflare_host(original_host):
+                      
+                  elif is_cloudflare_host(original_host) and CLEAN_CLOUDFLARE_IPS:
                       for _ in range(IPS_PER_CONFIG):
                           new_lines.append(f"{prefix}{random.choice(CLEAN_CLOUDFLARE_IPS)}{suffix}")
                       cf_injected += 1
+                      
                   else:
                       new_lines.append(line)
                       untouched += 1
@@ -723,7 +724,7 @@ jobs:
             LOG_FILE="${TARGET}_delays.log"
 
             if [ -s "$INPUT_FILE" ]; then
-              echo "🧪 Live testing started (Max delay: 3000ms). Please wait, this takes a few minutes..."
+              echo "🧪 Live testing started (Max delay: 5000ms). Please wait, this takes a few minutes..."
               
               ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 6000 --prescan-workers 50 --mdelay 5000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
 
