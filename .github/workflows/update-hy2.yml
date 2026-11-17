@@ -984,7 +984,9 @@ jobs:
             const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tehran' });
             
             const title = `[AUTO-NOTIFY] Status: ${emoji} (${now}) IRST`;
-            const body = `**Last Run Status:** ${emoji} ${status.toUpperCase()}\n**Time (IRST):** ${now}`;
+            
+            // اضافه شدن منشن برای فعال کردن نوتیفیکیشن
+            const body = `**Last Run Status:** ${emoji} ${status.toUpperCase()}\n**Time (IRST):** ${now}\n\n@majid1361`;
 
             const issues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
@@ -1009,6 +1011,8 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: title,
-              body: body
+              body: body,
+              // اختصاص دادن پیام به خودت
+              assignees: ['majid1361']
             });
             console.log('New issue created successfully.');
