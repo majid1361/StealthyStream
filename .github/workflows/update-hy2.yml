@@ -7,10 +7,11 @@ on:
 # │  ⚙️  پنل کنترل اصلی (Toggles) - true = روشن | false = خاموش    │
 # └──────────────────────────────────────────────────────────────┘
 env:
-  ENABLE_GITHUB_FETCH: 'true'
+  ENABLE_GITHUB_FETCH: 'false'
   ENABLE_TELEGRAM_FETCH: 'true'
-  ENABLE_INJECT: 'true'
-  ENABLE_LIVE_TEST: 'true'
+  ENABLE_INJECT: 'false'
+  ENABLE_LIVE_TEST: 'false'
+  ENABLE_DEDUPLICATE: 'false'
 
 permissions:
   contents: write
@@ -493,6 +494,7 @@ jobs:
       # │  🧹  بخش ۴: حذف کانفیگ‌های تکراری (Deduplicate)                 │
       # └──────────────────────────────────────────────────────────────┘
       - name: Deduplicate After Live Test
+        if: env.ENABLE_DEDUPLICATE == 'true' # 👈 کلید جدید اینجا اعمال شد
         run: |
           python - << 'PYEOF'
           import os, re, ipaddress, socket, time
