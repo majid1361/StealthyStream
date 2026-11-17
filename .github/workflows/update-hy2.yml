@@ -3,6 +3,15 @@ name: StealthyStream Multi-Source Aggregator
 on:
   workflow_dispatch:
 
+# ┌──────────────────────────────────────────────────────────────┐
+# │  ⚙️  پنل کنترل اصلی (Toggles) - true = روشن | false = خاموش    │
+# └──────────────────────────────────────────────────────────────┘
+env:
+  ENABLE_GITHUB_FETCH: 'true'
+  ENABLE_TELEGRAM_FETCH: 'true'
+  ENABLE_INJECT: 'true'
+  ENABLE_LIVE_TEST: 'true'
+
 permissions:
   contents: write
   issues: write
@@ -16,40 +25,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-      # ═══════════════════════════════════════════════════════
-      #  ●  دریافت مخزن
-      # ═══════════════════════════════════════════════════════
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      # ═══════════════════════════════════════════════════════
-      #  ●  آماده‌سازی پایتون
-      # ═══════════════════════════════════════════════════════
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      # ═══════════════════════════════════════════════════════
-      #  ●  نصب وابستگی‌ها
-      # ═══════════════════════════════════════════════════════
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests
 
-      # ═══════════════════════════════════════════════════════
-      #  ●  دریافت، پالایش و ذخیره اولیه کانفیگ‌ها
-      # ═══════════════════════════════════════════════════════
+      # ┌──────────────────────────────────────────────────────────────┐
+      # │  📥  بخش ۱: دریافت کانفیگ‌ها (گیت‌هاب و تلگرام)                     │
+      # └──────────────────────────────────────────────────────────────┘
       - name: Fetch, Deduplicate and Normalize Configs
         run: |
           python - << 'PYEOF'
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۱. کتابخانه‌ها
-          # ═══════════════════════════════════════════════════════
           import os
           import re
           import html
@@ -65,12 +61,9 @@ jobs:
           except ImportError:
               from requests.packages.urllib3.util.retry import Retry
 
+          ENABLE_GITHUB = os.getenv('ENABLE_GITHUB_FETCH', 'true') == 'true'
+          ENABLE_TELEGRAM = os.getenv('ENABLE_TELEGRAM_FETCH', 'true') == 'true'
 
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۲. منابع (دریافت از گیت‌هاب و تلگرام)
-          # ═══════════════════════════════════════════════════════
-          
-          # ─── منابع گیت‌هاب ───
           GITHUB_PUBLIC_URLS = [
               "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/vless",
               "https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt",
@@ -84,7 +77,6 @@ jobs:
               "https://raw.githubusercontent.com/Danialsamadi/v2go/main/AllConfigsSub.txt"
           ]
 
-          # ─── منابع تلگرام ───
           TELEGRAM_CHANNELS = [
               "prrofile_purple",
               "mehrosaboran",
@@ -110,680 +102,78 @@ jobs:
               "makvaslim"
           ]
 
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۳. تنظیمات
-          # ═══════════════════════════════════════════════════════
           TIMEOUT = 15
           MAX_BYTES = 5_000_000
           CHANNEL_SLEEP = 0.4
-
-          HEADERS = {
-              "User-Agent": (
-                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/122.0.0.0 Safari/537.36"
-              )
-          }
-
+          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
           VLESS_TROJAN_PROTOCOLS = ("vless://", "trojan://")
           ALL_PROTOCOLS = VLESS_TROJAN_PROTOCOLS
 
           UNSAFE_PATTERNS = (
-              "insecure=1",
-              "insecure=true",
-              "allowinsecure=1",
-              "allowinsecure=true",
-              "skip-cert-verify=1",
-              "skip-cert-verify=true",
-              "tlsinsecure=1",
-              "tlsinsecure=true",
-              "mitm",
-              "@127.0.0.1:",
-              "@localhost:",
-              "@0.0.0.0:",
+              "insecure=1", "insecure=true", "allowinsecure=1", "allowinsecure=true",
+              "skip-cert-verify=1", "skip-cert-verify=true", "tlsinsecure=1",
+              "tlsinsecure=true", "mitm", "@127.0.0.1:", "@localhost:", "@0.0.0.0:"
           )
 
-          CONFIG_REGEX = re.compile(
-              r'(?:vless|trojan)://[^\s<>"\'`]+',
-              re.IGNORECASE,
-          )
-
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۴. ذخیره‌سازی موقت
-          # ═══════════════════════════════════════════════════════
+          CONFIG_REGEX = re.compile(r'(?:vless|trojan)://[^\s<>"\'`]+', re.IGNORECASE)
           raw_vless_trojan_items = []
 
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۵. نشست HTTP
-          # ═══════════════════════════════════════════════════════
           session = requests.Session()
           session.headers.update(HEADERS)
-          _retry = Retry(
-              total=3,
-              backoff_factor=1,
-              status_forcelist=[429, 500, 502, 503, 504],
-              allowed_methods=["GET"],
-          )
+          _retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504], allowed_methods=["GET"])
           _adapter = HTTPAdapter(max_retries=_retry)
           session.mount("https://", _adapter)
           session.mount("http://", _adapter)
 
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۶. توابع کمکی
-          # ═══════════════════════════════════════════════════════
           def file_non_empty(path):
-              if not os.path.exists(path):
-                  return False
+              if not os.path.exists(path): return False
               try:
                   with open(path, "r", encoding="utf-8") as f:
                       return any(l.strip() for l in f)
-              except Exception:
-                  return False
-
+              except Exception: return False
 
           def decode_if_base64(text):
               stripped = text.strip()
-              if not stripped:
-                  return text
-              if any(p in stripped for p in ALL_PROTOCOLS):
-                  return text
-
+              if not stripped or any(p in stripped for p in ALL_PROTOCOLS): return text
               pad = "=" * ((4 - len(stripped) % 4) % 4)
               for cand in (stripped, stripped + pad):
                   for decoder in (base64.b64decode, base64.urlsafe_b64decode):
                       try:
-                          decoded = decoder(cand, validate=False).decode(
-                              "utf-8", errors="ignore"
-                          )
-                      except Exception:
-                          continue
-                      if any(p in decoded for p in ALL_PROTOCOLS):
-                          return decoded
+                          decoded = decoder(cand, validate=False).decode("utf-8", errors="ignore")
+                      except Exception: continue
+                      if any(p in decoded for p in ALL_PROTOCOLS): return decoded
               return text
-
-
-          def is_private_or_invalid_host(host):
-              host = (host or "").strip("[]").strip().lower()
-              if not host:
-                  return True
-              if host in {"localhost", "0.0.0.0", "::", "::1"}:
-                  return True
-              if host.endswith(".local") or host.endswith(".localhost"):
-                  return True
-              try:
-                  ip = ipaddress.ip_address(host)
-              except ValueError:
-                  return False
-              return (
-                  ip.is_private
-                  or ip.is_loopback
-                  or ip.is_link_local
-                  or ip.is_multicast
-                  or ip.is_reserved
-                  or ip.is_unspecified
-              )
-
-
-          def split_host_port(netloc):
-              if netloc.startswith("["):
-                  end = netloc.find("]")
-                  if end != -1:
-                      host = netloc[1:end]
-                      port = netloc[end + 1:].lstrip(":") or "443"
-                      return host, port
-              if ":" in netloc:
-                  host, port = netloc.rsplit(":", 1)
-                  return host, (port or "443")
-              return netloc, "443"
-
-
-          def has_unsafe_pattern(url_part):
-              low = url_part.lower()
-              return any(p in low for p in UNSAFE_PATTERNS)
-
-
-          def build_dedup_key(line):
-              try:
-                  parsed = urlparse(line)
-              except Exception:
-                  return None
-
-              protocol = (parsed.scheme or "").lower()
-              if not protocol:
-                  return None
-
-              base_config = line.split("#", 1)[0].strip()
-
-              if not parsed.netloc:
-                  return None
-
-              if "@" not in parsed.netloc:
-                  return None
-
-              user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
-              user_info = unquote(user_info_raw).strip().lower()
-              if not user_info:
-                  return None
-
-              if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.", user_info):
-                  return None
-              if re.match(r"^[0-9a-f]{32}\.[0-9a-z]", user_info):
-                  return None
-
-              host, port = split_host_port(netloc)
-              host = unquote(host).strip("[]").lower().rstrip(".")
-              if is_private_or_invalid_host(host):
-                  return None
-
-              q = parse_qs(parsed.query, keep_blank_values=False)
-
-              def qv_raw(*keys):
-                  for k in keys:
-                      kl = k.lower()
-                      for actual, vals in q.items():
-                          if actual.lower() == kl and vals:
-                              v = vals[0]
-                              if v is not None and v != "":
-                                  return v.strip()
-                  return ""
-
-              host_param = qv_raw("host").lower().rstrip(".")
-              if "/" in host_param or "?" in host_param:
-                  host_param = ""
-
-              sni = qv_raw("sni", "serverName", "peer", "server_name").lower().rstrip(".")
-              pbk = qv_raw("pbk", "publicKey", "public_key")
-              sid = qv_raw("sid", "shortId", "short_id")
-              net_type = qv_raw("type", "net").lower() or "tcp"
-              path = qv_raw("path", "serviceName", "service_name")
-              security = qv_raw("security").lower() or "none"
-              flow = qv_raw("flow").lower()
-              mode = qv_raw("mode").lower()
-              alpn = qv_raw("alpn").lower()
-              encryption = qv_raw("encryption").lower() or "none"
-              header_type = qv_raw("headerType", "headertype").lower()
-              if header_type == "none":
-                  header_type = ""
-
-              if protocol != "trojan":
-                  if security in ("", "none") and encryption in ("", "none"):
-                      return None
-
-              if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk):
-                  return None
-
-              if not path:
-                  path = "/"
-              elif "?" in path:
-                  base, query = path.split("?", 1)
-                  q_low = query.lower()
-                  branding = (
-                      "telegram", "planb_net", "marambashi", "tootffarangi",
-                      "v2ray_confiig", "evay_vpn", "mtmvpn", "bored_vpn",
-                      "iranping24", "mehrosaboran", "tehranargo", "dailyconfigs",
-                      "i10vpn", "b2hub", "amiraxvpn", "atovpn", "spiddy",
-                      "javidnamaniran", "arsalanvpn", "v2raxx", "mitivpn",
-                  )
-                  is_branding = (
-                      not q_low
-                      or q_low.startswith("ed=")
-                      or any(t in q_low for t in branding)
-                  )
-                  path = base if is_branding else (base + "?" + query)
-
-              if pbk or sid:
-                  identity = ("reality", pbk, sid, sni, flow)
-              elif host_param:
-                  identity = ("host", host_param, path, net_type, mode, alpn)
-              elif sni:
-                  identity = ("sni", sni, path, net_type, mode, alpn)
-              else:
-                  identity = ("uuid_only",)
-
-              return (
-                  protocol,
-                  user_info,
-                  port,
-                  identity,
-                  security,
-                  net_type,
-                  path,
-                  mode,
-                  alpn,
-                  encryption,
-                  header_type,
-              )
-
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۷. دریافت‌کننده‌ها
-          # ═══════════════════════════════════════════════════════
-          def fetch_mixed_urls(urls, label):
-              for raw_url in urls:
-                  url = raw_url.split("#")[0].strip()
-                  if not url:
-                      continue
-                  try:
-                      r = session.get(url, timeout=TIMEOUT)
-                      if r.status_code != 200:
-                          print(f"⚠️  [{label}] HTTP {r.status_code}: {url}")
-                          continue
-                      if len(r.content) > MAX_BYTES:
-                          print(f"⚠️  [{label}] حجم بیش از حد: {url}")
-                          continue
-
-                      content = decode_if_base64(r.text)
-                      lines = content.replace("\r", "").split("\n")
-
-                      other_added = 0
-                      seen_in_source = set()
-
-                      for line in lines:
-                          s = line.strip()
-                          if not s or s in seen_in_source:
-                              continue
-                          
-                          low = s.lower()
-                          if low.startswith(VLESS_TROJAN_PROTOCOLS):
-                              seen_in_source.add(s)
-                              raw_vless_trojan_items.append(s)
-                              other_added += 1
-
-                      print(f"✅ [{label}] Other: +{other_added}  ←  {url}")
-                  except Exception as e:
-                      print(f"❌ [{label}] خطا در {url}: {e}")
-
-
-          def fetch_telegram_channels(channels):
-              print("\n📡 استخراج از کانال‌های تلگرام آغاز شد.")
-              for channel in channels:
-                  name = (
-                      channel.strip()
-                      .replace("https://t.me/", "")
-                      .replace("@", "")
-                      .split("/")[0]
-                  )
-                  if not name:
-                      continue
-
-                  url = f"https://t.me/s/{name}"
-                  try:
-                      r = session.get(url, timeout=TIMEOUT)
-                      if r.status_code != 200:
-                          print(f"⚠️  @{name}: HTTP {r.status_code}")
-                          time.sleep(CHANNEL_SLEEP)
-                          continue
-
-                      text = re.sub(
-                          r'</?(?:div|br|p|blockquote|pre|code|hr|li|tr|td|th|h[1-6])[^>]*>',
-                          '\n',
-                          r.text,
-                          flags=re.IGNORECASE,
-                      )
-                      text = re.sub(r'<[^>]+>', '', text)
-                      text = html.unescape(text)
-
-                      configs = CONFIG_REGEX.findall(text)
-
-                      other_count = 0
-                      seen = set()
-
-                      for cfg in configs:
-                          c = cfg.strip().rstrip('.,;()[]{}\'"')
-                          if not c or c in seen:
-                              continue
-                          seen.add(c)
-                          low = c.lower()
-                          if low.startswith(VLESS_TROJAN_PROTOCOLS):
-                              raw_vless_trojan_items.append(c)
-                              other_count += 1
-
-                      print(f"✅ @{name}: Other={other_count}")
-                  except Exception as e:
-                      print(f"❌ @{name}: {e}")
-                  finally:
-                      time.sleep(CHANNEL_SLEEP)
-
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۸. بارگذاری فایل دستی
-          # ═══════════════════════════════════════════════════════
-          if os.path.exists("custom.txt"):
-              try:
-                  with open("custom.txt", "r", encoding="utf-8") as f:
-                      for line in f.read().replace("\r", "").split("\n"):
-                          s = line.strip()
-                          if not s:
-                              continue
-                          low = s.lower()
-                          if low.startswith(VLESS_TROJAN_PROTOCOLS):
-                              raw_vless_trojan_items.append(s)
-                  print("✅ custom.txt بارگذاری شد.")
-              except Exception as e:
-                  print(f"❌ خطا در خواندن custom.txt: {e}")
-
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۹. اجرای دریافت‌کننده‌ها
-          # ═══════════════════════════════════════════════════════
-
-          fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
-
-          fetch_telegram_channels(TELEGRAM_CHANNELS)
-
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۱۰. پالایش و یکتاسازی
-          # ═══════════════════════════════════════════════════════
-          print("\n🔍 پالایش و یکتاسازی آغاز شد.")
-
-          def clean_and_dedup(raw_list, label):
-              out = []
-              seen_exact = set()
-              dropped_unsafe = 0
-              dropped_invalid = 0
-              dropped_vmess = 0
-              dropped_dup = 0
-              dropped_quic = 0
-
-              for line in raw_list:
-                  if not line:
-                      continue
-
-                  base = line.split("#", 1)[0].strip()
-                  if not base:
-                      continue
-                  
-                  low = base.lower()
-
-                  if base[:8].lower() == "vmess://":
-                      dropped_vmess += 1
-                      continue
-
-                  if has_unsafe_pattern(base):
-                      dropped_unsafe += 1
-                      continue
-
-                  # حذف کامل کانفیگ‌های QUIC و KCP (عامل کرش)
-                  if "type=quic" in low or "type=kcp" in low:
-                      dropped_quic += 1
-                      continue
-
-                  key = build_dedup_key(line)
-                  if key is None:
-                      dropped_invalid += 1
-                      continue
-
-                  if base in seen_exact:
-                      dropped_dup += 1
-                      continue
-                  
-                  seen_exact.add(base)
-                  out.append(base)
-
-              print(
-                  f"  • {label}: نگه‌داشته={len(out)} | "
-                  f"امنیتی={dropped_unsafe} | "
-                  f"نامعتبر={dropped_invalid} | "
-                  f"تکراری={dropped_dup} | "
-                  f"vmess(drop)={dropped_vmess} | "
-                  f"کرش‌ساز(QUIC)={dropped_quic}"
-              )
-              return out
-
-          cleaned_vless = clean_and_dedup(raw_vless_trojan_items, "VLESS/Other")
-
-          print(f"✨ تعداد یکتای سایر: {len(cleaned_vless)}")
-
-
-          # ═══════════════════════════════════════════════════════
-          #  ●  ۱۱. ذخیرهٔ خروجی‌ها (بدون شماره‌گذاری)
-          # ═══════════════════════════════════════════════════════
-          if not cleaned_vless:
-              print("🛑 هیچ کانفیگی دریافت نشد — فایل‌های قبلی حفظ می‌شوند.")
-              sys.exit(0)
-
-          if cleaned_vless or not file_non_empty("vless_trojan_filtered.txt"):
-              with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
-                  if cleaned_vless:
-                      f.write("\n".join(cleaned_vless) + "\n")
-              print(f"🎉 vless_trojan_filtered.txt → {len(cleaned_vless)} کانفیگ (بدون شماره)")
-          else:
-              print("🛡️ vless_trojan_filtered.txt حفظ شد (اجرای بدون نتیجه).")
-
-          PYEOF
-
-      # ═══════════════════════════════════════════════════════
-      #  ●  تزریق آی‌پی‌های تمیز CDN (Fastly + Cloudflare)
-      # ═══════════════════════════════════════════════════════
-      - name: Inject Clean CDN IPs
-        run: |
-          ENABLE_IP_HOPPING=true
-
-          if [ "${ENABLE_IP_HOPPING:-false}" != "true" ]; then
-            echo "⏸️ IP Hopping disabled."
-            exit 0
-          fi
-
-          python - << 'PYEOF'
-          import os
-          import re
-          import random
-          import ipaddress
-
-          CLEAN_CLOUDFLARE_IPS = []
-          if os.path.exists("cf_clean_ips.txt"):
-              try:
-                  with open("cf_clean_ips.txt", "r", encoding="utf-8") as f:
-                      for line in f:
-                          ip = line.strip()
-                          if ip and not ip.startswith("#"):
-                              CLEAN_CLOUDFLARE_IPS.append(ip)
-                  print(f"✅ {len(CLEAN_CLOUDFLARE_IPS)} IPs loaded from cf_clean_ips.txt")
-              except Exception as e:
-                  print(f"⚠️ Error reading cf_clean_ips.txt: {e}")
-          else:
-              print("⚠️ cf_clean_ips.txt not found.")
-
-          CLEAN_FASTLY_IPS = []
-          if os.path.exists("fastly_clean_ips.txt"):
-              try:
-                  with open("fastly_clean_ips.txt", "r", encoding="utf-8") as f:
-                      for line in f:
-                          ip = line.strip()
-                          if ip and not ip.startswith("#"):
-                              CLEAN_FASTLY_IPS.append(ip)
-                  print(f"✅ {len(CLEAN_FASTLY_IPS)} IPs loaded from fastly_clean_ips.txt")
-              except Exception as e:
-                  print(f"⚠️ Error reading fastly_clean_ips.txt: {e}")
-          else:
-              print("⚠️ fastly_clean_ips.txt not found.")
-
-          FASTLY_CIDRS = [
-              "23.235.32.0/20", "43.249.72.0/22", "103.244.50.0/24",
-              "103.245.222.0/23", "103.245.224.0/24", "104.156.80.0/20",
-              "146.75.0.0/17", "151.101.0.0/16", "157.52.64.0/18",
-              "167.82.0.0/17", "167.82.128.0/20", "167.82.160.0/20",
-              "167.82.224.0/20", "172.111.64.0/18", "185.31.16.0/22",
-              "199.27.72.0/21", "199.232.0.0/16",
-          ]
-
-          CLOUDFLARE_CIDRS = [
-              "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
-              "104.16.0.0/13", "104.24.0.0/14", "108.162.192.0/18",
-              "131.0.72.0/22", "141.101.64.0/18", "162.158.0.0/15",
-              "172.64.0.0/13", "173.245.48.0/20", "188.114.96.0/20",
-              "190.93.240.0/20", "197.234.240.0/22", "198.41.128.0/17",
-          ]
-
-          IPS_PER_CONFIG = 5
-          _FASTLY_NETS = [ipaddress.ip_network(c) for c in FASTLY_CIDRS]
-          _CF_NETS = [ipaddress.ip_network(c) for c in CLOUDFLARE_CIDRS]
-
-          def _ip_in_nets(host, nets):
-              try:
-                  ip = ipaddress.ip_address(host)
-              except ValueError:
-                  return False
-              return any(ip in net for net in nets)
-
-          def is_fastly_host(host):
-              if host.endswith(".fastly.net"):
-                  return True
-              return _ip_in_nets(host, _FASTLY_NETS)
-
-          def is_cloudflare_host(host):
-              if host.endswith(".cloudflare.com") or host.endswith(".cloudflare.net"):
-                  return True
-              return _ip_in_nets(host, _CF_NETS)
-
-          HOST_RE = re.compile(r'^([a-z]+://[^@]+@)([^:/?#]+)(.*)$', re.IGNORECASE)
-
-          def process_file(filename):
-              if not os.path.exists(filename):
-                  return
-
-              with open(filename, "r", encoding="utf-8") as f:
-                  lines = [l.strip() for l in f if l.strip()]
-
-              new_lines = []
-              fastly_injected = 0
-              cf_injected = 0
-              untouched = 0
-
-              for line in lines:
-                  if not line.lower().startswith(("trojan://", "vless://")):
-                      new_lines.append(line)
-                      untouched += 1
-                      continue
-
-                  match = HOST_RE.match(line)
-                  if not match:
-                      new_lines.append(line)
-                      untouched += 1
-                      continue
-
-                  prefix, original_host, suffix = match.groups()
-
-                  if is_fastly_host(original_host) and CLEAN_FASTLY_IPS:
-                      for _ in range(IPS_PER_CONFIG):
-                          new_lines.append(f"{prefix}{random.choice(CLEAN_FASTLY_IPS)}{suffix}")
-                      fastly_injected += 1
-                      
-                  elif is_cloudflare_host(original_host) and CLEAN_CLOUDFLARE_IPS:
-                      for _ in range(IPS_PER_CONFIG):
-                          new_lines.append(f"{prefix}{random.choice(CLEAN_CLOUDFLARE_IPS)}{suffix}")
-                      cf_injected += 1
-                      
-                  else:
-                      new_lines.append(line)
-                      untouched += 1
-
-              with open(filename, "w", encoding="utf-8") as f:
-                  f.write("\n".join(new_lines) + "\n")
-
-              print(f"✅ {filename}:")
-              print(f"   - Fastly Injected:     {fastly_injected}")
-              print(f"   - Cloudflare Injected: {cf_injected}")
-              print(f"   - Untouched:           {untouched}")
-
-          process_file("vless_trojan_filtered.txt")
-          PYEOF
-
-      # ═══════════════════════════════════════════════════════
-      #  ●  تست زنده و حذف سرورهای مرده
-      # ═══════════════════════════════════════════════════════
-      - name: Live Test and Filter Dead Servers
-        timeout-minutes: 120
-        run: |
-          ENABLE_PING_TEST=true
-
-          if [ "${ENABLE_PING_TEST:-false}" != "true" ]; then
-            echo "⏸️ Ping test disabled."
-            exit 0
-          fi
-
-          echo "🔧 Installing Xray..."
-          curl -sL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -o xray.zip
-          unzip -q -o xray.zip xray
-          chmod +x xray
-          sudo mv xray /usr/local/bin/xray || exit 0
-
-          echo "📥 Downloading xray-knife..."
-          KNIFE_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest | grep -o '"browser_download_url": *"[^"]*linux-64[^"]*"' | cut -d '"' -f 4 | head -n 1)
-          wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || exit 0
-
-          TARGETS=("vless_trojan")
-
-          for TARGET in "${TARGETS[@]}"; do
-            INPUT_FILE="${TARGET}_filtered.txt"
-            OUTPUT_FILE="${TARGET}_alive.txt"
-            LOG_FILE="${TARGET}_delays.log"
-
-            if [ -s "$INPUT_FILE" ]; then
-              echo "🧪 Live testing started (Max delay: 5000ms). Please wait, this takes a few minutes..."
-              
-              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 6000 --prescan-workers 50 --mdelay 5000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
-
-              if [ -s "$OUTPUT_FILE" ]; then
-                sed -i '/^$/d' "$OUTPUT_FILE"
-                if [ -s "$OUTPUT_FILE" ]; then
-                  mv "$OUTPUT_FILE" "$INPUT_FILE"
-                fi
-              fi
-            fi
-          done
-
-      # ═══════════════════════════════════════════════════════
-      #  ●  تست سرعت نهایی و حذف تکراری‌ها
-      # ═══════════════════════════════════════════════════════
-      - name: Deduplicate After Live Test
-        run: |
-          python - << 'PYEOF'
-          import os
-          import re
-          import ipaddress
-          import socket
-          import time
-          from urllib.parse import urlparse, parse_qs, unquote
-
-          KEEP_PER_GROUP = 3
-
-          def split_host_port(netloc):
-              if netloc.startswith("["):
-                  end = netloc.find("]")
-                  if end != -1:
-                      host = netloc[1:end]
-                      port = netloc[end + 1:].lstrip(":") or "443"
-                      return host, port
-              if ":" in netloc:
-                  host, port = netloc.rsplit(":", 1)
-                  return host, (port or "443")
-              return netloc, "443"
 
           def is_private_or_invalid_host(host):
               host = (host or "").strip("[]").strip().lower()
               if not host: return True
               if host in {"localhost", "0.0.0.0", "::", "::1"}: return True
               if host.endswith(".local") or host.endswith(".localhost"): return True
-              try:
-                  ip = ipaddress.ip_address(host)
-              except ValueError:
-                  return False
+              try: ip = ipaddress.ip_address(host)
+              except ValueError: return False
               return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
 
+          def split_host_port(netloc):
+              if netloc.startswith("["):
+                  end = netloc.find("]")
+                  if end != -1:
+                      host = netloc[1:end]
+                      port = netloc[end + 1:].lstrip(":") or "443"
+                      return host, port
+              if ":" in netloc:
+                  host, port = netloc.rsplit(":", 1)
+                  return host, (port or "443")
+              return netloc, "443"
+
+          def has_unsafe_pattern(url_part):
+              low = url_part.lower()
+              return any(p in low for p in UNSAFE_PATTERNS)
+
           def build_dedup_key(line):
-              try:
-                  parsed = urlparse(line)
-              except Exception:
-                  return None
+              try: parsed = urlparse(line)
+              except Exception: return None
               protocol = (parsed.scheme or "").lower()
-              if not protocol: return None
-              if not parsed.netloc: return None
-              if "@" not in parsed.netloc: return None
+              if not protocol or not parsed.netloc or "@" not in parsed.netloc: return None
               user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
               user_info = unquote(user_info_raw).strip().lower()
               if not user_info: return None
@@ -817,8 +207,360 @@ jobs:
               encryption = qv_raw("encryption").lower() or "none"
               header_type = qv_raw("headerType", "headertype").lower()
               if header_type == "none": header_type = ""
-              if protocol != "trojan":
-                  if security in ("", "none") and encryption in ("", "none"): return None
+              if protocol != "trojan" and security in ("", "none") and encryption in ("", "none"): return None
+              if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk): return None
+              if not path: path = "/"
+              elif "?" in path:
+                  base, query = path.split("?", 1)
+                  q_low = query.lower()
+                  branding = ("telegram", "planb_net", "marambashi", "tootffarangi", "v2ray_confiig", "evay_vpn", "mtmvpn", "bored_vpn", "iranping24", "mehrosaboran", "tehranargo", "dailyconfigs", "i10vpn", "b2hub", "amiraxvpn", "atovpn", "spiddy", "javidnamaniran", "arsalanvpn", "v2raxx", "mitivpn")
+                  is_branding = (not q_low or q_low.startswith("ed=") or any(t in q_low for t in branding))
+                  path = base if is_branding else (base + "?" + query)
+              if pbk or sid: identity = ("reality", pbk, sid, sni, flow)
+              elif host_param: identity = ("host", host_param, path, net_type, mode, alpn)
+              elif sni: identity = ("sni", sni, path, net_type, mode, alpn)
+              else: identity = ("uuid_only",)
+              return (protocol, user_info, port, identity, security, net_type, path, mode, alpn, encryption, header_type)
+
+          def fetch_mixed_urls(urls, label):
+              for raw_url in urls:
+                  url = raw_url.split("#")[0].strip()
+                  if not url: continue
+                  try:
+                      r = session.get(url, timeout=TIMEOUT)
+                      if r.status_code != 200 or len(r.content) > MAX_BYTES: continue
+                      content = decode_if_base64(r.text)
+                      lines = content.replace("\r", "").split("\n")
+                      other_added = 0
+                      seen_in_source = set()
+                      for line in lines:
+                          s = line.strip()
+                          if not s or s in seen_in_source: continue
+                          low = s.lower()
+                          if low.startswith(VLESS_TROJAN_PROTOCOLS):
+                              seen_in_source.add(s)
+                              raw_vless_trojan_items.append(s)
+                              other_added += 1
+                      print(f"✅ [{label}] Other: +{other_added}  ←  {url}")
+                  except Exception as e: print(f"❌ [{label}] Error: {e}")
+
+          def fetch_telegram_channels(channels):
+              print("\n📡 Fetching from Telegram channels...")
+              for channel in channels:
+                  name = channel.strip().replace("https://t.me/", "").replace("@", "").split("/")[0]
+                  if not name: continue
+                  url = f"https://t.me/s/{name}"
+                  try:
+                      r = session.get(url, timeout=TIMEOUT)
+                      if r.status_code != 200:
+                          time.sleep(CHANNEL_SLEEP)
+                          continue
+                      text = re.sub(r'</?(?:div|br|p|blockquote|pre|code|hr|li|tr|td|th|h[1-6])[^>]*>', '\n', r.text, flags=re.IGNORECASE)
+                      text = re.sub(r'<[^>]+>', '', text)
+                      text = html.unescape(text)
+                      configs = CONFIG_REGEX.findall(text)
+                      other_count = 0
+                      seen = set()
+                      for cfg in configs:
+                          c = cfg.strip().rstrip('.,;()[]{}\'"')
+                          if not c or c in seen: continue
+                          seen.add(c)
+                          if c.lower().startswith(VLESS_TROJAN_PROTOCOLS):
+                              raw_vless_trojan_items.append(c)
+                              other_count += 1
+                      print(f"✅ @{name}: +{other_count}")
+                  except Exception as e: print(f"❌ @{name}: {e}")
+                  finally: time.sleep(CHANNEL_SLEEP)
+
+          if os.path.exists("custom.txt"):
+              try:
+                  with open("custom.txt", "r", encoding="utf-8") as f:
+                      for line in f.read().replace("\r", "").split("\n"):
+                          s = line.strip()
+                          if s and s.lower().startswith(VLESS_TROJAN_PROTOCOLS):
+                              raw_vless_trojan_items.append(s)
+                  print("✅ custom.txt loaded.")
+              except Exception as e: print(f"❌ custom.txt error: {e}")
+
+          if ENABLE_GITHUB:
+              fetch_mixed_urls(GITHUB_PUBLIC_URLS, "GitHub")
+          else:
+              print("⏸️ GitHub fetch disabled by Toggle.")
+
+          if ENABLE_TELEGRAM:
+              fetch_telegram_channels(TELEGRAM_CHANNELS)
+          else:
+              print("⏸️ Telegram fetch disabled by Toggle.")
+
+          def clean_and_dedup(raw_list, label):
+              out = []
+              seen_exact = set()
+              dropped_unsafe = dropped_invalid = dropped_vmess = dropped_dup = dropped_quic = 0
+              for line in raw_list:
+                  if not line: continue
+                  base = line.split("#", 1)[0].strip()
+                  if not base: continue
+                  low = base.lower()
+                  if base[:8].lower() == "vmess://":
+                      dropped_vmess += 1
+                      continue
+                  if has_unsafe_pattern(base):
+                      dropped_unsafe += 1
+                      continue
+                  if "type=quic" in low or "type=kcp" in low:
+                      dropped_quic += 1
+                      continue
+                  key = build_dedup_key(line)
+                  if key is None:
+                      dropped_invalid += 1
+                      continue
+                  if base in seen_exact:
+                      dropped_dup += 1
+                      continue
+                  seen_exact.add(base)
+                  out.append(base)
+              print(f"  • {label}: Kept={len(out)} | Unsafe={dropped_unsafe} | Invalid={dropped_invalid} | Dup={dropped_dup} | Vmess={dropped_vmess} | QUIC={dropped_quic}")
+              return out
+
+          cleaned_vless = clean_and_dedup(raw_vless_trojan_items, "VLESS/Other")
+
+          if not cleaned_vless:
+              print("🛑 No configs found. Keeping previous files.")
+              sys.exit(0)
+
+          with open("vless_trojan_filtered.txt", "w", encoding="utf-8") as f:
+              if cleaned_vless:
+                  f.write("\n".join(cleaned_vless) + "\n")
+          print(f"🎉 vless_trojan_filtered.txt → {len(cleaned_vless)} configs")
+          PYEOF
+
+      # ┌──────────────────────────────────────────────────────────────┐
+      # │  🔄  بخش ۲: تزریق آی‌پی‌های تمیز (Fastly و Cloudflare)         │
+      # └──────────────────────────────────────────────────────────────┘
+      - name: Inject Clean CDN IPs
+        if: env.ENABLE_INJECT == 'true'
+        run: |
+          ENABLE_IP_HOPPING=true
+          if [ "${ENABLE_IP_HOPPING:-false}" != "true" ]; then
+            echo "⏸️ IP Hopping disabled."
+            exit 0
+          fi
+          python - << 'PYEOF'
+          import os, re, random, ipaddress
+
+          CLEAN_CLOUDFLARE_IPS = []
+          if os.path.exists("cf_clean_ips.txt"):
+              try:
+                  with open("cf_clean_ips.txt", "r", encoding="utf-8") as f:
+                      for line in f:
+                          ip = line.strip()
+                          if ip and not ip.startswith("#"): CLEAN_CLOUDFLARE_IPS.append(ip)
+                  print(f"✅ {len(CLEAN_CLOUDFLARE_IPS)} IPs loaded from cf_clean_ips.txt")
+              except Exception as e: print(f"⚠️ Error reading cf_clean_ips.txt: {e}")
+          else: print("⚠️ cf_clean_ips.txt not found.")
+
+          CLEAN_FASTLY_IPS = []
+          if os.path.exists("fastly_clean_ips.txt"):
+              try:
+                  with open("fastly_clean_ips.txt", "r", encoding="utf-8") as f:
+                      for line in f:
+                          ip = line.strip()
+                          if ip and not ip.startswith("#"): CLEAN_FASTLY_IPS.append(ip)
+                  print(f"✅ {len(CLEAN_FASTLY_IPS)} IPs loaded from fastly_clean_ips.txt")
+              except Exception as e: print(f"⚠️ Error reading fastly_clean_ips.txt: {e}")
+          else: print("⚠️ fastly_clean_ips.txt not found.")
+
+          FASTLY_CIDRS = [
+              "23.235.32.0/20",
+              "43.249.72.0/22",
+              "103.244.50.0/24",
+              "103.245.222.0/23",
+              "103.245.224.0/24",
+              "104.156.80.0/20",
+              "146.75.0.0/17",
+              "151.101.0.0/16",
+              "157.52.64.0/18",
+              "167.82.0.0/17",
+              "167.82.128.0/20",
+              "167.82.160.0/20",
+              "167.82.224.0/20",
+              "172.111.64.0/18",
+              "185.31.16.0/22",
+              "199.27.72.0/21",
+              "199.232.0.0/16"
+          ]
+
+          CLOUDFLARE_CIDRS = [
+              "103.21.244.0/22",
+              "103.22.200.0/22",
+              "103.31.4.0/22",
+              "104.16.0.0/13",
+              "104.24.0.0/14",
+              "108.162.192.0/18",
+              "131.0.72.0/22",
+              "141.101.64.0/18",
+              "162.158.0.0/15",
+              "172.64.0.0/13",
+              "173.245.48.0/20",
+              "188.114.96.0/20",
+              "190.93.240.0/20",
+              "197.234.240.0/22",
+              "198.41.128.0/17"
+          ]
+
+          IPS_PER_CONFIG = 5
+          _FASTLY_NETS = [ipaddress.ip_network(c) for c in FASTLY_CIDRS]
+          _CF_NETS = [ipaddress.ip_network(c) for c in CLOUDFLARE_CIDRS]
+
+          def _ip_in_nets(host, nets):
+              try: ip = ipaddress.ip_address(host)
+              except ValueError: return False
+              return any(ip in net for net in nets)
+
+          def is_fastly_host(host):
+              if host.endswith(".fastly.net"): return True
+              return _ip_in_nets(host, _FASTLY_NETS)
+
+          def is_cloudflare_host(host):
+              if host.endswith(".cloudflare.com") or host.endswith(".cloudflare.net"): return True
+              return _ip_in_nets(host, _CF_NETS)
+
+          HOST_RE = re.compile(r'^([a-z]+://[^@]+@)([^:/?#]+)(.*)$', re.IGNORECASE)
+
+          def process_file(filename):
+              if not os.path.exists(filename): return
+              with open(filename, "r", encoding="utf-8") as f:
+                  lines = [l.strip() for l in f if l.strip()]
+              new_lines, fastly_injected, cf_injected, untouched = [], 0, 0, 0
+              for line in lines:
+                  if not line.lower().startswith(("trojan://", "vless://")):
+                      new_lines.append(line); untouched += 1; continue
+                  match = HOST_RE.match(line)
+                  if not match:
+                      new_lines.append(line); untouched += 1; continue
+                  prefix, original_host, suffix = match.groups()
+                  if is_fastly_host(original_host) and CLEAN_FASTLY_IPS:
+                      for _ in range(IPS_PER_CONFIG): new_lines.append(f"{prefix}{random.choice(CLEAN_FASTLY_IPS)}{suffix}")
+                      fastly_injected += 1
+                  elif is_cloudflare_host(original_host) and CLEAN_CLOUDFLARE_IPS:
+                      for _ in range(IPS_PER_CONFIG): new_lines.append(f"{prefix}{random.choice(CLEAN_CLOUDFLARE_IPS)}{suffix}")
+                      cf_injected += 1
+                  else:
+                      new_lines.append(line); untouched += 1
+              with open(filename, "w", encoding="utf-8") as f: f.write("\n".join(new_lines) + "\n")
+              print(f"✅ {filename}:\n   - Fastly Injected: {fastly_injected}\n   - Cloudflare Injected: {cf_injected}\n   - Untouched: {untouched}")
+
+          process_file("vless_trojan_filtered.txt")
+          PYEOF
+
+      # ┌──────────────────────────────────────────────────────────────┐
+      # │  🧪  بخش ۳: تست زنده (xray-knife) و حذف سرورهای مرده         │
+      # └──────────────────────────────────────────────────────────────┘
+      - name: Live Test and Filter Dead Servers
+        if: env.ENABLE_LIVE_TEST == 'true'
+        timeout-minutes: 120
+        run: |
+          ENABLE_PING_TEST=true
+          if [ "${ENABLE_PING_TEST:-false}" != "true" ]; then
+            echo "⏸️ Ping test disabled."; exit 0
+          fi
+          echo "🔧 Installing Xray..."
+          curl -sL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -o xray.zip
+          unzip -q -o xray.zip xray
+          chmod +x xray
+          sudo mv xray /usr/local/bin/xray || exit 0
+          
+          echo "📥 Downloading xray-knife..."
+          KNIFE_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/lilendian0x00/xray-knife/releases/latest | grep -o '"browser_download_url": *"[^"]*linux-64[^"]*"' | cut -d '"' -f 4 | head -n 1)
+          wget -q "$KNIFE_URL" -O knife.zip && unzip -q -o knife.zip && chmod +x xray-knife || exit 0
+          
+          TARGETS=("vless_trojan")
+          for TARGET in "${TARGETS[@]}"; do
+            INPUT_FILE="${TARGET}_filtered.txt"
+            OUTPUT_FILE="${TARGET}_alive.txt"
+            LOG_FILE="${TARGET}_delays.log"
+            if [ -s "$INPUT_FILE" ]; then
+              echo "🧪 Live testing started (Max delay: 5000ms)..."
+              ./xray-knife http -f "$INPUT_FILE" --prescan --prescan-timeout 6000 --prescan-workers 50 --mdelay 5000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
+              if [ -s "$OUTPUT_FILE" ]; then
+                sed -i '/^$/d' "$OUTPUT_FILE"
+                if [ -s "$OUTPUT_FILE" ]; then mv "$OUTPUT_FILE" "$INPUT_FILE"; fi
+              fi
+            fi
+          done
+
+      # ┌──────────────────────────────────────────────────────────────┐
+      # │  🧹  بخش ۴: حذف کانفیگ‌های تکراری (Deduplicate)                 │
+      # └──────────────────────────────────────────────────────────────┘
+      - name: Deduplicate After Live Test
+        run: |
+          python - << 'PYEOF'
+          import os, re, ipaddress, socket, time
+          from urllib.parse import urlparse, parse_qs, unquote
+
+          ENABLE_LIVE_TEST = os.getenv('ENABLE_LIVE_TEST', 'true') == 'true'
+          KEEP_PER_GROUP = 3
+
+          def split_host_port(netloc):
+              if netloc.startswith("["):
+                  end = netloc.find("]")
+                  if end != -1:
+                      host = netloc[1:end]
+                      port = netloc[end + 1:].lstrip(":") or "443"
+                      return host, port
+              if ":" in netloc:
+                  host, port = netloc.rsplit(":", 1)
+                  return host, (port or "443")
+              return netloc, "443"
+
+          def is_private_or_invalid_host(host):
+              host = (host or "").strip("[]").strip().lower()
+              if not host: return True
+              if host in {"localhost", "0.0.0.0", "::", "::1"}: return True
+              if host.endswith(".local") or host.endswith(".localhost"): return True
+              try: ip = ipaddress.ip_address(host)
+              except ValueError: return False
+              return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
+
+          def build_dedup_key(line):
+              try: parsed = urlparse(line)
+              except Exception: return None
+              protocol = (parsed.scheme or "").lower()
+              if not protocol or not parsed.netloc or "@" not in parsed.netloc: return None
+              user_info_raw, netloc = parsed.netloc.rsplit("@", 1)
+              user_info = unquote(user_info_raw).strip().lower()
+              if not user_info: return None
+              if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.", user_info): return None
+              if re.match(r"^[0-9a-f]{32}\.[0-9a-z]", user_info): return None
+              host, port = split_host_port(netloc)
+              host = unquote(host).strip("[]").lower().rstrip(".")
+              if is_private_or_invalid_host(host): return None
+              q = parse_qs(parsed.query, keep_blank_values=False)
+
+              def qv_raw(*keys):
+                  for k in keys:
+                      kl = k.lower()
+                      for actual, vals in q.items():
+                          if actual.lower() == kl and vals:
+                              v = vals[0]
+                              if v is not None and v != "": return v.strip()
+                  return ""
+
+              host_param = qv_raw("host").lower().rstrip(".")
+              if "/" in host_param or "?" in host_param: host_param = ""
+              sni = qv_raw("sni", "serverName", "peer", "server_name").lower().rstrip(".")
+              pbk = qv_raw("pbk", "publicKey", "public_key")
+              sid = qv_raw("sid", "shortId", "short_id")
+              net_type = qv_raw("type", "net").lower() or "tcp"
+              path = qv_raw("path", "serviceName", "service_name")
+              security = qv_raw("security").lower() or "none"
+              flow = qv_raw("flow").lower()
+              mode = qv_raw("mode").lower()
+              alpn = qv_raw("alpn").lower()
+              encryption = qv_raw("encryption").lower() or "none"
+              header_type = qv_raw("headerType", "headertype").lower()
+              if header_type == "none": header_type = ""
+              if protocol != "trojan" and security in ("", "none") and encryption in ("", "none"): return None
               if pbk and not re.match(r"^[A-Za-z0-9_\-+/=]+$", pbk): return None
               if not path: path = "/"
               elif "?" in path:
@@ -834,6 +576,7 @@ jobs:
               return (protocol, user_info, port, identity, security, net_type, path, mode, alpn, encryption, header_type)
 
           def get_delay(line):
+              if not ENABLE_LIVE_TEST: return 0
               try:
                   parsed = urlparse(line)
                   if "@" not in parsed.netloc: return 9999
@@ -842,14 +585,12 @@ jobs:
                   start_time = time.time()
                   socket.create_connection((host, int(port)), timeout=3.0).close()
                   return int((time.time() - start_time) * 1000)
-              except Exception:
-                  return 1500
+              except Exception: return 1500
 
           def dedup_file(path):
               if not os.path.exists(path): return
               groups = {}
               alive_count = 0
-              
               with open(path, "r", encoding="utf-8") as f:
                   for line in f:
                       s = line.strip()
@@ -859,120 +600,79 @@ jobs:
                       delay = get_delay(s)
                       groups.setdefault(key, []).append((delay, s))
                       alive_count += 1
-
               out = []
               total_dropped = 0
               for key, items in groups.items():
                   items.sort(key=lambda x: x[0])
                   for delay, cfg in items[:KEEP_PER_GROUP]: out.append(cfg)
                   total_dropped += max(0, len(items) - KEEP_PER_GROUP)
-
               with open(path, "w", encoding="utf-8") as f:
                   f.write("\n".join(out) + ("\n" if out else ""))
-
-              print("\n" + "═"*58)
-              print("📊 گزارش نهایی تست سرعت و حذف تکراری‌ها")
-              print("═"*58)
-              print(f"  ✅ تعداد کانفیگ‌های سالم و نهایی : {len(out)}")
-              print(f"  🧹 تعداد کانفیگ‌های حذف‌شده (تکراری/کند) : {total_dropped}")
-              print(f"  📁 تعداد گروه‌های سرور یکتا : {len(groups)}")
-              print(f"  ⚡ تعداد سرعت‌های با موفقیت تست شده : {alive_count}")
-              print("-" * 58)
-              
-              if alive_count > 0:
-                  print("  🚀 موفقیت: سرعت‌ها با موفقیت در پس‌زمینه اندازه‌گیری شدند.")
-                  print("  🏆 پرسرعت‌ترین کانفیگ‌ها از هر گروه انتخاب و جایگزین شدند.")
-              else:
-                  print("  ⚠️ هشدار: هیچ کانفیگی برای تست سرعت پیدا نشد.")
-              print("═"*58 + "\n")
+              print(f"✅ Final healthy configs: {len(out)}")
+              print(f"🧹 Dropped (dup/slow): {total_dropped}")
+              print(f"📁 Unique server groups: {len(groups)}")
 
           dedup_file("vless_trojan_filtered.txt")
           PYEOF
 
-      # ═══════════════════════════════════════════════════════
-      #  ●  شماره‌گذاری نهایی و ذخیره شمارنده
-      # ═══════════════════════════════════════════════════════
+      # ┌──────────────────────────────────────────────────────────────┐
+      # │  🔢  بخش ۵: شماره‌گذاری نهایی و ذخیره شمارنده                     │
+      # └──────────────────────────────────────────────────────────────┘
       - name: Numbering and Save Counter
         run: |
           python - << 'PYEOF'
           import os
           from urllib.parse import quote
-
           counter_file = "counter.txt"
           start_counter = 1
-
           if os.path.exists(counter_file):
               try:
-                  with open(counter_file, "r", encoding="utf-8") as f:
-                      txt = f.read().strip()
-                  if txt.isdigit():
-                      start_counter = int(txt) + 1
-              except Exception:
-                  pass
-
+                  with open(counter_file, "r", encoding="utf-8") as f: txt = f.read().strip()
+                  if txt.isdigit(): start_counter = int(txt) + 1
+              except Exception: pass
           tag_prefix = quote("⚡ULTRA-TITAN-SRV-")
           current_number = start_counter
-
           def number_file(filename):
               global current_number
-              if not os.path.exists(filename):
-                  return
-              with open(filename, "r", encoding="utf-8") as f:
-                  lines = [l.strip() for l in f if l.strip()]
-              
-              if not lines:
-                  return
-
+              if not os.path.exists(filename): return
+              with open(filename, "r", encoding="utf-8") as f: lines = [l.strip() for l in f if l.strip()]
+              if not lines: return
               out_lines = []
               for cfg in lines:
                   base = cfg.split("#", 1)[0].strip()
                   out_lines.append(f"{base}#{tag_prefix}{current_number}")
                   current_number += 1
-                  
-              with open(filename, "w", encoding="utf-8") as f:
-                  f.write("\n".join(out_lines) + "\n")
-              print(f"🏷️ {filename} → شماره‌گذاری شد ({len(out_lines)} کانفیگ)")
-
+              with open(filename, "w", encoding="utf-8") as f: f.write("\n".join(out_lines) + "\n")
+              print(f"🏷️ {filename} → Numbered ({len(out_lines)} configs)")
           number_file("vless_trojan_filtered.txt")
-
-          if current_number > start_counter:
-              last_saved = current_number - 1
-          elif start_counter > 1:
-              last_saved = start_counter - 1
-          else:
-              last_saved = 0
-
-          with open(counter_file + ".tmp", "w", encoding="utf-8") as f:
-              f.write(str(last_saved))
+          if current_number > start_counter: last_saved = current_number - 1
+          elif start_counter > 1: last_saved = start_counter - 1
+          else: last_saved = 0
+          with open(counter_file + ".tmp", "w", encoding="utf-8") as f: f.write(str(last_saved))
           os.replace(counter_file + ".tmp", counter_file)
-
-          print(f"🔢 شماره‌گذاری نهایی: {start_counter} → {last_saved}")
+          print(f"🔢 Final counter: {start_counter} → {last_saved}")
           PYEOF
 
-      # ═══════════════════════════════════════════════════════
-      #  ●  ثبت و ارسال تغییرات
-      # ═══════════════════════════════════════════════════════
+      # ┌──────────────────────────────────────────────────────────────┐
+      # │  💾  بخش ۶: ثبت و ارسال تغییرات (Commit & Push)                │
+      # └──────────────────────────────────────────────────────────────┘
       - name: Commit and Push Changes
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
           git add vless_trojan_filtered.txt counter.txt
-
           if git diff --cached --quiet; then
-            echo "ℹ️  تغییری برای commit وجود ندارد."
+            echo "ℹ️ No changes to commit."
             exit 0
           fi
-
           VLESS_COUNT=$( [ -f vless_trojan_filtered.txt ] && wc -l < vless_trojan_filtered.txt || echo 0 )
-
           git commit -m "Update configs (vless=${VLESS_COUNT}) [CI]"
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
           git push
           
-      # ═══════════════════════════════════════════════════════
-      #  ●  ساخت نوتیفیکیشن جدید و بستن قبلی‌ها
-      # ═══════════════════════════════════════════════════════
+      # ┌──────────────────────────────────────────────────────────────┐
+      # │  🔔  بخش ۷: ساخت نوتیفیکیشن جدید در Issues                     │
+      # └──────────────────────────────────────────────────────────────┘
       - name: Create New Notification Issue
         if: always()
         uses: actions/github-script@v7
@@ -980,36 +680,13 @@ jobs:
           script: |
             const status = '${{ job.status }}';
             const emoji = status === 'success' ? '✅' : '❌';
-            
             const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tehran' });
-            
             const title = `[AUTO-NOTIFY] Status: ${emoji} (${now}) IRST`;
-            
             const body = `**Last Run Status:** ${emoji} ${status.toUpperCase()}\n**Time (IRST):** ${now}\n\n@majid1361`;
-
-            const issues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              per_page: 100
-            });
-
+            const issues = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 100 });
             const oldNotifyIssues = issues.data.filter(issue => issue.title.includes('[AUTO-NOTIFY]'));
-
             for (const issue of oldNotifyIssues) {
-              await github.rest.issues.update({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.number,
-                state: 'closed'
-              });
-              console.log(`Closed old issue #${issue.number}`);
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, state: 'closed' });
             }
-
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body
-            });
+            await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title: title, body: body });
             console.log('New issue created successfully.');
