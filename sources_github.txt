@@ -1,12 +1,3 @@
-# ╔════════════════════════════════════════════════════════════╗
-# ║  🌐 سورس‌های گیت‌هاب — StealthyStream                      ║
-# ║                                                            ║
-# ║  راهنما:                                                   ║
-# ║  • هر خط = یک URL (باید با http یا https شروع بشه)         ║
-# ║  • خطوطی که با # شروع می‌شن = کامنت (نادیده گرفته می‌شه)    ║
-# ║  • خط خالی = نادیده                                        ║
-# ╚════════════════════════════════════════════════════════════╝
-
 https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/vless
 https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt
 https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs_tested.txt
