@@ -1,3 +1,4 @@
+https://sub-seven-psi.vercel.app/api?user=majid
 https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/vless
 https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs.txt
 https://raw.githubusercontent.com/4n0nymou3/multi-proxy-config-fetcher/refs/heads/main/configs/proxy_configs_tested.txt
