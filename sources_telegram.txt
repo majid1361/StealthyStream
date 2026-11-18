@@ -3,7 +3,6 @@ mehrosaboran
 persianvpnhub
 daily_configs
 allproconf
-vpnplusee_free
 oneclickvpnkeys
 ConfigV2rayNG
 V2rayuir
@@ -19,4 +18,3 @@ VpnProxy4free
 PrivateVPNs
 free1_vpn
 ConfigYab_FREE
-makvaslim
