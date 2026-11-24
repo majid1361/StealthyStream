@@ -515,11 +515,11 @@ jobs:
             if [ ! -s "$INPUT_FILE" ]; then
               echo "⏭️ $INPUT_FILE خالی."; continue
             fi
-            echo "🧪 تست $INPUT_FILE (max delay 5000ms)..."
-            timeout --kill-after=60 5400 ./xray-knife http \
+            echo "🧪 تست $INPUT_FILE (max delay 15000ms)..."
+            timeout --kill-after=60 7200 ./xray-knife http \
               -f "$INPUT_FILE" \
-              --prescan --prescan-timeout 6000 --prescan-workers 50 \
-              --mdelay 5000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
+              --prescan --prescan-timeout 10000 --prescan-workers 25 \
+              --mdelay 15000 -t 20 -v -o "$OUTPUT_FILE" > "$LOG_FILE" 2>&1 || true
 
             if [ -s "$OUTPUT_FILE" ]; then
               sed -i '/^$/d' "$OUTPUT_FILE" || true
@@ -549,8 +549,8 @@ jobs:
 
           T0 = time.time()
           ENABLE_LIVE_TEST = os.getenv('ENABLE_LIVE_TEST', 'true') == 'true'
-          KEEP_PER_GROUP = 3
-          NETWORK_BUDGET_SECONDS = 300
+          KEEP_PER_GROUP = 5
+          NETWORK_BUDGET_SECONDS = 500
 
           def split_host_port(netloc):
               if netloc.startswith("["):
@@ -659,7 +659,7 @@ jobs:
                   except Exception:
                       return 9999
                   start = time.time()
-                  socket.create_connection((host, port_i), timeout=3.0).close()
+                  socket.create_connection((host, port_i), timeout=5.0).close()
                   return int((time.time() - start) * 1000)
               except Exception:
                   return 9999
