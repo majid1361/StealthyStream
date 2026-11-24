@@ -834,14 +834,13 @@ jobs:
 
             const status = '${{ job.status }}';
             const emoji  = status === 'success' ? '✅' : '❌';
-            const now    = new Intl.DateTimeFormat('fa-IR', {
+            const statusFa = status === 'success' ? 'موفق' : 'ناموفق';
+            
+            // زمان به شمسی و فارسی
+            const now = new Intl.DateTimeFormat('fa-IR', {
               timeZone: 'Asia/Tehran',
-              year: 'numeric',
-              month: 'long',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false
+              year: 'numeric', month: 'long', day: '2-digit',
+              hour: '2-digit', minute: '2-digit', hour12: false
             }).format(new Date());
 
             let configCount = 0;
@@ -851,38 +850,34 @@ jobs:
                 configCount = fs.readFileSync(filePath, 'utf8')
                   .split(/\r?\n/)
                   .filter(l => l.trim()).length;
-                console.log(`✓ فایل خوانده شد — ${configCount} کانفیگ سالم`);
-              } else {
-                console.log(`ℹ️ فایل vless_trojan_filtered.txt وجود ندارد — تعداد روی ۰ تنظیم شد`);
               }
-            } catch (e) { console.log(`⚠️ خواندن فایل ناموفق: ${e.message}`); }
+            } catch (e) { console.log(`⚠️ خطا در خواندن فایل: ${e.message}`); }
 
-            const title       = `[AUTO-NOTIFY] آخرین وضعیت: ${emoji} (${now})`;
-            const body        = `**وضعیت:** ${emoji} ${status.toUpperCase()}\n**تعداد کانفیگ سالم:** ${configCount}\n**زمان (تهران):** ${now}\n\n@majid1361`;
-            const commentBody = `🔄 **اجرای جدید** — ${emoji} ${status.toUpperCase()} — ${configCount} کانفیگ سالم — ${now}\n\n@majid1361`;
+            // عدد کانفیگ به فارسی
+            const configCountFa = configCount.toLocaleString('fa-IR');
+
+            const title       = `[AUTO-NOTIFY] وضعیت: ${emoji} (${now})`;
+            const body        = `**وضعیت:** ${emoji} ${statusFa}\n**تعداد کانفیگ سالم:** ${configCountFa}\n**زمان (تهران):** ${now}\n\n@majid1361`;
+            
+            // ترتیب کلمات در کامنت اینجا کاملاً راست‌چین و مرتب است
+            const commentBody = `🔄 **اجرای جدید** — وضعیت: ${statusFa} ${emoji} — تعداد: ${configCountFa} کانفیگ سالم — زمان: ${now}\n\n@majid1361`;
 
             let existing = null;
             try {
               const issues = await github.rest.issues.listForRepo({ owner, repo, state: 'open', per_page: 100 });
               existing = issues.data.find(i => i.title?.includes('[AUTO-NOTIFY]'));
-              if (existing) console.log(`✓ Issue موجود پیدا شد: #${existing.number}`);
-              else console.log(`ℹ️ Issue بازی با عنوان [AUTO-NOTIFY] پیدا نشد.`);
-            } catch (e) { console.log(`⚠️ دریافت لیست Issueها ناموفق: ${e.message}`); }
+            } catch (e) { console.log(`⚠️ دریافت لیست ناموفق: ${e.message}`); }
 
             if (existing) {
               try {
-                await github.rest.issues.update({
-                  owner, repo, issue_number: existing.number, title, body
-                });
+                await github.rest.issues.update({ owner, repo, issue_number: existing.number, title, body });
                 console.log(`✓ Issue #${existing.number} به‌روزرسانی شد.`);
-              } catch (e) { console.log(`⚠️ به‌روزرسانی Issue ناموفق: ${e.message}`); }
+              } catch (e) { console.log(`⚠️ آپدیت ناموفق: ${e.message}`); }
 
               try {
-                await github.rest.issues.createComment({
-                  owner, repo, issue_number: existing.number, body: commentBody
-                });
+                await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: commentBody });
                 console.log(`✓ کامنت جدید اضافه شد.`);
-              } catch (e) { console.log(`⚠️ افزودن کامنت ناموفق: ${e.message}`); }
+              } catch (e) { console.log(`⚠️ کامنت ناموفق: ${e.message}`); }
             } else {
               try {
                 await github.rest.issues.create({ owner, repo, title, body });
