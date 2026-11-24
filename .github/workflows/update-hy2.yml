@@ -819,7 +819,7 @@ jobs:
           fi
 
       # ╔═════════════════════╗
-      #    🔔  ارسال نوتیفیکیشن               
+      #    🔔  ارسال نوتیفیکیشن
       # ╚═════════════════════╝
 
       - name: "Step 7 » Send Issue Notification"
@@ -828,50 +828,51 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { owner, repo } = context.repo;
+
+            const status = '${{ job.status }}';
+            const emoji  = status === 'success' ? '✅' : '❌';
+            const now    = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tehran' });
+
+            let configCount = 0;
             try {
-              const status = '${{ job.status }}';
-              const emoji = status === 'success' ? '✅' : '❌';
-              const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tehran' });
-              const title = `[AUTO-NOTIFY] آخرین وضعیت: ${emoji} (${now})`;
-              const body = `**وضعیت:** ${emoji} ${status.toUpperCase()}\n**زمان (تهران):** ${now}\n\n@majid1361`;
-
-              let existing = null;
-              try {
-                const issues = await github.rest.issues.listForRepo({
-                  owner: context.repo.owner, repo: context.repo.repo,
-                  state: 'open', per_page: 100
-                });
-                existing = issues.data.find(i => i.title && i.title.includes('[AUTO-NOTIFY]'));
-              } catch (e) { console.log(`list issues failed: ${e.message}`); }
-
-              if (existing) {
-                try {
-                  await github.rest.issues.update({
-                    owner: context.repo.owner, repo: context.repo.repo,
-                    issue_number: existing.number,
-                    title: title,
-                    body: body
-                  });
-                  console.log(`✓ Issue #${existing.number} آپدیت شد.`);
-                } catch (e) { console.log(`update failed: ${e.message}`); }
-
-                try {
-                  await github.rest.issues.createComment({
-                    owner: context.repo.owner, repo: context.repo.repo,
-                    issue_number: existing.number,
-                    body: `🔄 **اجرای جدید** — ${emoji} ${status.toUpperCase()} — ${now}\n\n@majid1361`
-                  });
-                  console.log(`✓ کامنت جدید اضافه شد.`);
-                } catch (e) { console.log(`comment failed: ${e.message}`); }
-              } else {
-                try {
-                  await github.rest.issues.create({
-                    owner: context.repo.owner, repo: context.repo.repo,
-                    title: title, body: body
-                  });
-                  console.log('✓ Issue جدید ساخته شد.');
-                } catch (e) { console.log(`create failed: ${e.message}`); }
+              const filePath = path.join(process.env.GITHUB_WORKSPACE || '.', 'vless_trojan_filtered.txt');
+              if (fs.existsSync(filePath)) {
+                configCount = fs.readFileSync(filePath, 'utf8')
+                  .split(/\r?\n/)
+                  .filter(l => l.trim()).length;
               }
-            } catch (e) {
-              console.log(`fatal: ${e.message}`);
+            } catch (e) { console.log(`read file failed: ${e.message}`); }
+
+            const title       = `[AUTO-NOTIFY] آخرین وضعیت: ${emoji} (${now})`;
+            const body        = `**وضعیت:** ${emoji} ${status.toUpperCase()}\n**تعداد کانفیگ سالم:** ${configCount}\n**زمان (تهران):** ${now}\n\n@majid1361`;
+            const commentBody = `🔄 **اجرای جدید** — ${emoji} ${status.toUpperCase()} — ${configCount} کانفیگ سالم — ${now}\n\n@majid1361`;
+
+            let existing = null;
+            try {
+              const issues = await github.rest.issues.listForRepo({ owner, repo, state: 'open', per_page: 100 });
+              existing = issues.data.find(i => i.title?.includes('[AUTO-NOTIFY]'));
+            } catch (e) { console.log(`list issues failed: ${e.message}`); }
+
+            if (existing) {
+              try {
+                await github.rest.issues.update({
+                  owner, repo, issue_number: existing.number, title, body
+                });
+                console.log(`✓ Issue #${existing.number} updated.`);
+              } catch (e) { console.log(`update failed: ${e.message}`); }
+
+              try {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: existing.number, body: commentBody
+                });
+                console.log(`✓ Comment added.`);
+              } catch (e) { console.log(`comment failed: ${e.message}`); }
+            } else {
+              try {
+                await github.rest.issues.create({ owner, repo, title, body });
+                console.log(`✓ Issue created.`);
+              } catch (e) { console.log(`create failed: ${e.message}`); }
             }
