@@ -836,7 +836,6 @@ jobs:
             const emoji  = status === 'success' ? '✅' : '❌';
             const statusFa = status === 'success' ? 'موفق' : 'ناموفق';
             
-            // زمان به شمسی و فارسی
             const now = new Intl.DateTimeFormat('fa-IR', {
               timeZone: 'Asia/Tehran',
               year: 'numeric', month: 'long', day: '2-digit',
@@ -853,13 +852,11 @@ jobs:
               }
             } catch (e) { console.log(`⚠️ خطا در خواندن فایل: ${e.message}`); }
 
-            // عدد کانفیگ به فارسی
             const configCountFa = configCount.toLocaleString('fa-IR');
 
             const title       = `[AUTO-NOTIFY] وضعیت: ${emoji} (${now})`;
             const body        = `**وضعیت:** ${emoji} ${statusFa}\n**تعداد کانفیگ سالم:** ${configCountFa}\n**زمان (تهران):** ${now}\n\n@majid1361`;
             
-            // ترتیب کلمات در کامنت اینجا کاملاً راست‌چین و مرتب است
             const commentBody = `🔄 **اجرای جدید** — وضعیت: ${statusFa} ${emoji} — تعداد: ${configCountFa} کانفیگ سالم — زمان: ${now}\n\n@majid1361`;
 
             let existing = null;
@@ -871,7 +868,7 @@ jobs:
             if (existing) {
               try {
                 await github.rest.issues.update({ owner, repo, issue_number: existing.number, title, body });
-                console.log(`✓ Issue #${existing.number} به‌روزرسانی شد.`);
+                console.log(`✓ Issue #${existing.number} به‌ روزرسانی شد.`);
               } catch (e) { console.log(`⚠️ آپدیت ناموفق: ${e.message}`); }
 
               try {
